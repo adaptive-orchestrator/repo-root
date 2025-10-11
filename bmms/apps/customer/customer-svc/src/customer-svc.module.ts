@@ -3,6 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { DbModule } from '@bmms/db';
 import { CustomerSvcController } from './customer-svc.controller';
 import { CustomerSvcService } from './customer-svc.service';
+import { EventModule } from '@bmms/event';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Customer } from './customer.entity';
 
 @Module({
   imports: [
@@ -10,8 +13,12 @@ import { CustomerSvcService } from './customer-svc.service';
       isGlobal: true,
       // Tự động load .env từ root
     }),
-    // QUAN TRỌNG: Phải truyền prefix khớp với .env
+    TypeOrmModule.forFeature([Customer]), 
     DbModule.forRoot({ prefix: 'CUSTOMER_SVC' }),
+    EventModule.forRoot({
+      clientId: 'customer-svc',
+      consumerGroupId: 'customer-group',
+    }),
   ],
   controllers: [CustomerSvcController],
   providers: [CustomerSvcService],

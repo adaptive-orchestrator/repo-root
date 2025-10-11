@@ -1,12 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
-import { orderSvcService } from './order-svc.service';
+import { OrderSvcService } from './order-svc.service';
 
 @Controller()
-export class orderSvcController {
-  constructor(private readonly orderSvcService: orderSvcService) {}
+export class OrderSvcController {
+  constructor(private readonly OrderSvcService: OrderSvcService) {}
 
-  @Get()
-  getHello(): string {
-    return this.orderSvcService.getHello();
-  }
+  // @Get()
+  // getHello(): string {
+  //   return this.OrderSvcService.getHello();
+  // }
 }
