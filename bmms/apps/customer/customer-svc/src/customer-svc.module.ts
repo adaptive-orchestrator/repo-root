@@ -22,5 +22,6 @@ import { Customer } from './customer.entity';
   ],
   controllers: [CustomerSvcController],
   providers: [CustomerSvcService],
+   exports: [CustomerSvcService], 
 })
 export class CustomerSvcModule {}

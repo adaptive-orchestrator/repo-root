@@ -1,41 +1,424 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ClientKafka } from '@nestjs/microservices';
 
-import { Injectable } from '@nestjs/common';
-import { EventPublisher, EventTopics, OrderCreatedEvent, createBaseEvent } from '@bmms/event';
+import { Order } from './entities/order.entity';
+import { OrderItem } from './entities/order-item.entity';
+import { OrderHistory } from './entities/order-history.entity';
+
+import { CreateOrderDto } from './dto/create-order.dto';
+import { AddItemDto } from './dto/add-item.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
+import { EventTopics } from '@bmms/event';
+
+
 
 @Injectable()
 export class OrderSvcService {
-  constructor(private readonly eventPublisher: EventPublisher) {}
+  constructor(
+    @InjectRepository(Order)
+    private readonly orderRepo: Repository<Order>,
 
-  async createOrder(data: {
-    customerId: string;
-    items: Array<{ productId: string; quantity: number; price: number }>;
-  }) {
-    // 1. Tạo order
-    const order = {
-      id: crypto.randomUUID(),
-      ...data,
-      totalAmount: data.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-      status: 'PENDING',
-      createdAt: new Date(),
-    };
+    @InjectRepository(OrderItem)
+    private readonly itemRepo: Repository<OrderItem>,
 
-    // 2. Lưu vào DB
-    // await this.orderRepository.save(order);
+    @InjectRepository(OrderHistory)
+    private readonly historyRepo: Repository<OrderHistory>,
 
-    // 3. Publish event
-    const event: OrderCreatedEvent = {
-      ...createBaseEvent(EventTopics.ORDER_CREATED, 'order-svc'),
-       eventType: 'order.created',
+    @Inject('KAFKA_SERVICE')
+    private readonly kafka: ClientKafka,
+  ) { }
+
+  // ============= CRUD =============
+
+  async create(dto: CreateOrderDto): Promise<Order> {
+    // Generate order number
+    const orderNumber = await this.generateOrderNumber();
+
+    // Calculate totals
+    const subtotal = dto.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
+
+    const order = await this.orderRepo.save(
+      this.orderRepo.create({
+        orderNumber,
+        customerId: dto.customerId,
+        subtotal,
+        totalAmount: subtotal, // Will be updated after tax/shipping calculation
+        notes: dto.notes,
+        shippingAddress: dto.shippingAddress,
+        billingAddress: dto.billingAddress,
+        status: 'pending',
+      }),
+    );
+
+    // Add items
+    const items = await Promise.all(
+      dto.items.map((item) =>
+        this.itemRepo.save(
+          this.itemRepo.create({
+            orderId: order.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            subtotal: item.price * item.quantity,
+            notes: item.notes,
+          }),
+        ),
+      ),
+    );
+
+    order.items = items;
+    order.totalAmount = order.calculateTotal();
+    await this.orderRepo.save(order);
+
+    // Save history
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        action: 'created',
+        newStatus: 'pending',
+        notes: `Order created with ${items.length} items`,
+      }),
+    );
+
+    this.kafka.emit(EventTopics.ORDER_CREATED, {
+      eventId: crypto.randomUUID(),
+      eventType: EventTopics.ORDER_CREATED,
+      timestamp: new Date(),
+      source: 'order-svc',
       data: {
         orderId: order.id,
+        orderNumber: order.orderNumber,
         customerId: order.customerId,
-        items: order.items,
+        items: items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+        })),
         totalAmount: order.totalAmount,
+        status: order.status,
+        createdAt: order.createdAt,
       },
-    };
-
-    await this.eventPublisher.publish(EventTopics.ORDER_CREATED, event);
+    });
 
     return order;
+  }
+
+  async list(): Promise<Order[]> {
+    return this.orderRepo.find({
+      relations: ['items'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async listByCustomer(customerId: number): Promise<Order[]> {
+    return this.orderRepo.find({
+      where: { customerId },
+      relations: ['items'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getById(id: number): Promise<Order> {
+    const order = await this.orderRepo.findOne({
+      where: { id },
+      relations: ['items'],
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${id} not found`);
+    }
+
+    return order;
+  }
+
+  async getByOrderNumber(orderNumber: string): Promise<Order> {
+    const order = await this.orderRepo.findOne({
+      where: { orderNumber },
+      relations: ['items'],
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order ${orderNumber} not found`);
+    }
+
+    return order;
+  }
+
+  async update(id: number, dto: UpdateOrderDto): Promise<Order> {
+    const order = await this.getById(id);
+
+    if (order.status !== 'pending') {
+      throw new BadRequestException(
+        `Cannot update order in ${order.status} status`,
+      );
+    }
+
+    Object.assign(order, dto);
+    return this.orderRepo.save(order);
+  }
+
+  // ============= STATUS MANAGEMENT =============
+
+  async updateStatus(id: number, dto: UpdateStatusDto): Promise<Order> {
+    const order = await this.getById(id);
+    const previousStatus = order.status;
+
+    // Validate status transitions
+    const validTransitions = {
+      pending: ['confirmed', 'cancelled'],
+      confirmed: ['processing', 'cancelled'],
+      processing: ['shipped', 'cancelled'],
+      shipped: ['delivered'],
+      delivered: [],
+      cancelled: [],
+    };
+
+    if (!(validTransitions[previousStatus as keyof typeof validTransitions] as string[]).includes(dto.status)) {
+      throw new BadRequestException(
+        `Cannot transition from ${previousStatus} to ${dto.status}`,
+      );
+    }
+
+
+    order.status = dto.status;
+    const updated = await this.orderRepo.save(order);
+
+    // Save history
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        orderId: id,
+        orderNumber: order.orderNumber,
+        action: 'status_changed',
+        previousStatus,
+        newStatus: dto.status,
+        notes: dto.notes,
+      }),
+    );
+
+    this.kafka.emit(EventTopics.ORDER_UPDATED, {
+      eventId: crypto.randomUUID(),
+      eventType: EventTopics.ORDER_UPDATED,
+      timestamp: new Date(),
+      source: 'order-svc',
+      data: {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerId: order.customerId,
+        previousStatus,
+        newStatus: dto.status,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Emit specific event for order completed
+    if (dto.status === 'delivered') {
+      this.kafka.emit(EventTopics.ORDER_COMPLETED, {
+        eventId: crypto.randomUUID(),
+        eventType: EventTopics.ORDER_COMPLETED,
+        timestamp: new Date(),
+        source: 'order-svc',
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId,
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    if (dto.status === 'cancelled') {
+      this.kafka.emit(EventTopics.ORDER_CANCELLED, {
+        eventId: crypto.randomUUID(),
+        eventType: EventTopics.ORDER_CANCELLED,
+        timestamp: new Date(),
+        source: 'order-svc',
+        data: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId,
+          reason: dto.notes || 'No reason provided',
+        },
+      });
+    }
+
+    return updated;
+  }
+
+  // ============= ITEM MANAGEMENT =============
+
+  async addItem(id: number, dto: AddItemDto): Promise<Order> {
+    const order = await this.getById(id);
+
+    if (order.status !== 'pending') {
+      throw new BadRequestException(
+        `Cannot add items to order in ${order.status} status`,
+      );
+    }
+
+    // Check if product already in order
+    const existingItem = order.items.find((i) => i.productId === dto.productId);
+
+    if (existingItem) {
+      existingItem.quantity += dto.quantity;
+      existingItem.subtotal = existingItem.calculateSubtotal();
+      await this.itemRepo.save(existingItem);
+    } else {
+      const newItem = await this.itemRepo.save(
+        this.itemRepo.create({
+          orderId: order.id,
+          productId: dto.productId,
+          quantity: dto.quantity,
+          price: dto.price,
+          subtotal: dto.price * dto.quantity,
+          notes: dto.notes,
+        }),
+      );
+      order.items.push(newItem);
+    }
+
+    // Recalculate totals
+    order.subtotal = order.items.reduce(
+      (sum, item) => sum + item.subtotal,
+      0,
+    );
+    order.totalAmount = order.calculateTotal();
+    const updated = await this.orderRepo.save(order);
+
+    // Save history
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        orderId: id,
+        orderNumber: order.orderNumber,
+        action: 'item_added',
+        notes: `Added ${dto.quantity} x product ${dto.productId}`,
+      }),
+    );
+
+    return updated;
+  }
+
+  async deleteItem(id: number, itemId: number): Promise<Order> {
+    const order = await this.getById(id);
+
+    if (order.status !== 'pending') {
+      throw new BadRequestException(
+        `Cannot remove items from order in ${order.status} status`,
+      );
+    }
+
+    const item = order.items.find((i) => i.id === itemId);
+
+    if (!item) {
+      throw new NotFoundException(
+        `Item ${itemId} not found in order ${id}`,
+      );
+    }
+
+    await this.itemRepo.delete(itemId);
+
+    // Recalculate totals
+    order.items = order.items.filter((i) => i.id !== itemId);
+    order.subtotal = order.items.reduce(
+      (sum, item) => sum + item.subtotal,
+      0,
+    );
+    order.totalAmount = order.calculateTotal();
+    const updated = await this.orderRepo.save(order);
+
+    // Save history
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        orderId: id,
+        orderNumber: order.orderNumber,
+        action: 'item_removed',
+        notes: `Removed item ${itemId} (product ${item.productId})`,
+      }),
+    );
+
+    return updated;
+  }
+
+  // ============= UTILITIES =============
+
+  async getOrderHistory(id: number): Promise<OrderHistory[]> {
+    return this.historyRepo.find({
+      where: { orderId: id },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async generateOrderNumber(): Promise<string> {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+
+    // Get latest order number for this month
+    const latestOrder = await this.orderRepo
+      .createQueryBuilder('order')
+      .where('order.orderNumber LIKE :pattern', {
+        pattern: `ORD-${year}-${month}-%`,
+      })
+      .orderBy('order.orderNumber', 'DESC')
+      .take(1)
+      .getOne();
+
+    let sequence = 1;
+    if (latestOrder) {
+      const lastSequence = parseInt(
+        latestOrder.orderNumber.split('-')[3],
+        10,
+      );
+      sequence = lastSequence + 1;
+    }
+
+    const sequenceStr = String(sequence).padStart(5, '0');
+    return `ORD-${year}-${month}-${sequenceStr}`;
+  }
+
+  async getOrderStats(customerId: number): Promise<any> {
+    const orders = await this.orderRepo.find({
+      where: { customerId },
+      relations: ['items'],
+    });
+
+    const totalOrders = orders.length;
+    const totalSpent = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+    const avgOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
+    const totalItems = orders.reduce((sum, o) => sum + o.getItemCount(), 0);
+
+    return {
+      totalOrders,
+      totalSpent: Number(totalSpent.toFixed(2)),
+      avgOrderValue: Number(avgOrderValue.toFixed(2)),
+      totalItems,
+    };
+  }
+
+  async cancel(id: number, reason?: string): Promise<Order> {
+    const order = await this.getById(id);
+
+    if (['delivered', 'cancelled'].includes(order.status)) {
+      throw new BadRequestException(
+        `Cannot cancel order in ${order.status} status`,
+      );
+    }
+
+    return this.updateStatus(id, {
+      status: 'cancelled',
+      notes: reason,
+    });
   }
 }

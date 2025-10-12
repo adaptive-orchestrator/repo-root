@@ -5,17 +5,24 @@ import { EventModule } from '@bmms/event';
 import { OrderSvcController } from './order-svc.controller';
 import { OrderSvcService } from './order-svc.service';
 import { OrderEventListener } from './order.event-listener';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { OrderHistory } from './entities/order-history.entity';
+import { OrderItem } from './entities/order-item.entity';
+import { Order } from './entities/order.entity';
+import { CustomerSvcModule } from 'apps/customer/customer-svc/src/customer-svc.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    TypeOrmModule.forFeature([OrderHistory,OrderItem,Order]), 
     DbModule.forRoot({ prefix: 'ORDER_SVC' }),
     EventModule.forRoot({
       clientId: 'order-svc',
       consumerGroupId: 'order-group',
     }),
+    CustomerSvcModule,
   ],
   controllers: [OrderSvcController],
   providers: [OrderSvcService, OrderEventListener],
