@@ -254,6 +254,46 @@ export interface PaymentFailedEvent extends BaseEvent {
 }
 
 /**
+ * Billing Events
+ */
+export interface InvoiceCreatedEvent extends BaseEvent {
+  eventType: 'invoice.created';
+  data: {
+    invoiceId: number;
+    invoiceNumber: string;
+    orderId: number;
+    orderNumber: string;
+    customerId: number;
+    totalAmount: number;
+    dueDate: Date;
+    status: string;
+    createdAt: Date;
+  };
+}
+
+export interface InvoiceUpdatedEvent extends BaseEvent {
+  eventType: 'invoice.updated';
+  data: {
+    invoiceId: number;
+    invoiceNumber: string;
+    customerId: number;
+    previousStatus: string;
+    newStatus: string;
+  };
+}
+
+export interface InvoiceOverdueEvent extends BaseEvent {
+  eventType: 'invoice.overdue';
+  data: {
+    invoiceId: number;
+    invoiceNumber: string;
+    customerId: number;
+    dueAmount: number;
+    dueDate: Date;
+  };
+}
+
+/**
  * Helper function để tạo base event
  */
 export function createBaseEvent(

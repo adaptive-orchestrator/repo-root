@@ -43,6 +43,11 @@ export const EventTopics = {
   PAYMENT_SUCCESS: 'payment.success',
   PAYMENT_FAILED: 'payment.failed',
 
+  // Billing events
+  INVOICE_CREATED: 'invoice.created',
+  INVOICE_UPDATED: 'invoice.updated',
+  INVOICE_OVERDUE: 'invoice.overdue',
+  
   // Inventory events
   INVENTORY_CREATED: 'inventory.created',
   INVENTORY_ADJUSTED: 'inventory.adjusted',

@@ -3,6 +3,8 @@ import { Payload } from '@nestjs/microservices';
 import * as event from '@bmms/event';
 import { OrderSvcService } from './order-svc.service';
 import { CustomerSvcService } from 'apps/customer/customer-svc/src/customer-svc.service';
+import * as event_1 from '@bmms/event';
+
 
 @Controller()
 export class OrderEventListener {
@@ -42,6 +44,35 @@ export class OrderEventListener {
     }
   }
 
+  /** -------- Inventory Events -------- */
+
+  @event.OnEvent(event.EventTopics.INVENTORY_RESERVED)
+  async handleInventoryReserved(@Payload() event: any) {
+    try {
+      this.logEvent(event);
+      const { orderId } = event.data;
+      // TODO: Mark order as "stock confirmed" if all items reserved
+      console.log(`✅ Inventory reserved for order ${orderId}`);
+    } catch (error) {
+      console.error('❌ Error handling INVENTORY_RESERVED:', error);
+    }
+  }
+
+  @event.OnEvent(event.EventTopics.INVENTORY_RELEASED)
+  async handleInventoryReleased(@Payload() event: event_1.InventoryReleasedEvent) {
+    try {
+      this.logEvent(event);
+      const { orderId, reason } = event.data;
+      
+      if (reason === 'order_cancelled') {
+        // await this.orderService.updateStatus(orderId, 'cancelled');
+        console.log(`📦 Inventory released for cancelled order ${orderId}`);
+      }
+    } catch (error) {
+      console.error('❌ Error handling INVENTORY_RELEASED:', error);
+    }
+  }
+
   /** ------------------- Payment Events ------------------- */
 
   @event.OnEvent(event.EventTopics.PAYMENT_SUCCESS)
@@ -60,6 +91,21 @@ export class OrderEventListener {
       console.error('Error handling PAYMENT_SUCCESS event:', error);
     }
   }
+  @event.OnEvent(event.EventTopics.PAYMENT_FAILED)
+  async handlePaymentFailed(@Payload() event: event.PaymentFailedEvent) {
+    try {
+      this.logEvent(event);
+      const { orderId, reason } = event.data;
+
+      // Send notification to customer about payment failure
+      // await this.notificationService.sendPaymentFailureAlert(orderId, reason);
+
+      console.log(`❌ Payment failed for order ${orderId}: ${reason}`);
+    } catch (error) {
+      console.error('❌ Error handling PAYMENT_FAILED:', error);
+    }
+  }
+
 
   /** ------------------- Helper ------------------- */
   private logEvent<T extends { eventType: string }>(event: T) {
