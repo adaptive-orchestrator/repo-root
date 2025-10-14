@@ -13,9 +13,9 @@ export class OrderHistory {
 
   @Column({
     type: 'enum',
-    enum: ['created', 'status_changed', 'item_added', 'item_removed', 'cancelled'],
+    enum: ['created', 'updated', 'status_changed', 'item_added', 'item_removed', 'cancelled'],
   })
-  action: 'created' | 'status_changed' | 'item_added' | 'item_removed' | 'cancelled';
+  action: 'created' | 'updated' | 'status_changed' | 'item_added' | 'item_removed' | 'cancelled';
 
   @Column({ nullable: true })
   previousStatus?: string;

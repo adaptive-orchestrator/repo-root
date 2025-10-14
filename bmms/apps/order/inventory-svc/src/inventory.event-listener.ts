@@ -1,5 +1,5 @@
 import { Controller } from '@nestjs/common';
-import { Payload } from '@nestjs/microservices';
+import { EventPattern, Payload } from '@nestjs/microservices';
 import * as event from '@bmms/event';
 import { InventoryService } from './inventory-svc.service';
 
@@ -7,25 +7,20 @@ import { InventoryService } from './inventory-svc.service';
 export class InventoryEventListener {
   constructor(
     private readonly inventoryService: InventoryService,
-    //private readonly notificationService: NotificationService,
   ) {}
 
   /** -------- Product Events -------- */
 
-  @event.OnEvent(event.EventTopics.PRODUCT_CREATED)
+  @EventPattern(event.EventTopics.PRODUCT_CREATED)
   async handleProductCreated(@Payload() event: event.ProductCreatedEvent) {
     try {
       this.logEvent(event);
       const { id: productId, name } = event.data;
 
       // Create initial inventory record
-      // await this.inventoryService.create({
-      //   productId,
-      //   quantity: 0,
-      //   reorderLevel: 10,
-      // });
+      await this.inventoryService.createInventoryForProduct(productId, 0, 10);
 
-      console.log(`✅ Inventory initialized for new product: ${name}`);
+      console.log(`✅ Inventory initialized for new product: ${name} (ID: ${productId})`);
     } catch (error) {
       console.error('❌ Error handling PRODUCT_CREATED:', error);
     }
@@ -33,35 +28,55 @@ export class InventoryEventListener {
 
   /** -------- Order Events -------- */
 
-  @event.OnEvent(event.EventTopics.ORDER_CREATED)
+  @EventPattern(event.EventTopics.ORDER_CREATED)
   async handleOrderCreated(@Payload() event: event.OrderCreatedEvent) {
     try {
       this.logEvent(event);
-      const { orderId, items } = event.data;
+      const { orderId, orderNumber, items, customerId } = event.data;
 
-      // Reserve inventory for all items in order
-      // await this.inventoryService.bulkReserve({
-      //   items,
-      //   orderId: orderId.toString(),
-      //   customerId: event.data.customerId,
-      // });
+      console.log(`📦 Processing inventory reservation for order ${orderNumber} (ID: ${orderId})`);
 
-      console.log(`✅ Reserved inventory for order ${orderId}`);
+      // Reserve inventory for each item in order
+      for (const item of items) {
+        const { productId, quantity } = item;
+
+        try {
+          // Reserve stock
+          const reservation = await this.inventoryService.reserveStock(
+            productId,
+            quantity,
+            orderId.toString(),
+            customerId,
+          );
+
+          console.log(`✅ Reserved ${quantity} units of product ${productId} for order ${orderNumber}`);
+        } catch (error) {
+          console.error(`❌ Failed to reserve product ${productId} for order ${orderNumber}:`, error.message);
+          
+          // TODO: Implement compensation logic
+          // - Release already reserved items
+          // - Notify order service about reservation failure
+          // - Update order status to 'RESERVATION_FAILED'
+          throw error;
+        }
+      }
+
+      console.log(`✅ All inventory reserved successfully for order ${orderNumber}`);
     } catch (error) {
       console.error('❌ Error handling ORDER_CREATED:', error);
       // TODO: Send alert to admin about reservation failure
+      // TODO: Emit ORDER_RESERVATION_FAILED event back to order service
     }
   }
 
-  @event.OnEvent(event.EventTopics.ORDER_COMPLETED)
+  @EventPattern(event.EventTopics.ORDER_COMPLETED)
   async handleOrderCompleted(@Payload() event: event.OrderCompletedEvent) {
     try {
       this.logEvent(event);
       const { orderId } = event.data;
 
-      // Complete all reservations for order
-      // Deduct from stock
-      // await this.inventoryService.completeReservations(orderId.toString());
+      // Complete all reservations for order (convert reserved -> actual deduction)
+      await this.inventoryService.completeReservations(orderId);
 
       console.log(`✅ Completed inventory reservations for order ${orderId}`);
     } catch (error) {
@@ -69,25 +84,28 @@ export class InventoryEventListener {
     }
   }
 
-  @event.OnEvent(event.EventTopics.ORDER_CANCELLED)
+  @EventPattern(event.EventTopics.ORDER_CANCELLED)
   async handleOrderCancelled(@Payload() event: event.OrderCancelledEvent) {
     try {
       this.logEvent(event);
       const { orderId, reason } = event.data;
 
-      // Release all reserved inventory
-      // await this.inventoryService.cancelReservations(orderId.toString());
+      // Release all reserved inventory back to available stock
+      await this.inventoryService.releaseReservations(orderId, 'order_cancelled');
 
-      console.log(`✅ Released inventory for cancelled order ${orderId}`);
+      console.log(`✅ Released inventory for cancelled order ${orderId} (Reason: ${reason})`);
     } catch (error) {
       console.error('❌ Error handling ORDER_CANCELLED:', error);
     }
   }
 
-  /** -------- Helper Methods -------- */
-  private logEvent<T extends { eventType: string; timestamp: Date }>(event: T) {
+   private logEvent<T extends { eventType: string; timestamp: Date | string }>(event: T) {
+    const timestamp = typeof event.timestamp === 'string'
+      ? new Date(event.timestamp).toISOString()
+      : event.timestamp.toISOString();
+
     console.log(
-      `📥 [INVENTORY] Received event [${event.eventType}] at ${event.timestamp.toISOString()}`,
+      `🔥 [BILLING] Received event [${event.eventType}] at ${timestamp}`,
     );
   }
 }

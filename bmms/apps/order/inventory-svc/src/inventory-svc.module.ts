@@ -23,7 +23,7 @@ import { InventoryEventListener } from './inventory.event-listener';
           consumerGroupId: 'inventory-group',
         }),
   ],
-  controllers: [InventoryController],
-  providers: [InventoryService,InventoryEventListener],
+  controllers: [InventoryController,InventoryEventListener],
+  providers: [InventoryService],
 })
 export class InventorySvcModule {}

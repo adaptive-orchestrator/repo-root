@@ -1,7 +1,8 @@
 
- import { Controller, Post, Get, Patch, Delete, Body, Param } from '@nestjs/common';
+ import { Controller, Post, Get, Patch, Delete, Body, Param, Put } from '@nestjs/common';
 import { OrderSvcService } from './order-svc.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { UpdateOrderDto } from './dto/update-order.dto';
 
 @Controller('api/v1/orders')
 export class OrderSvcController {
@@ -18,6 +19,13 @@ export class OrderSvcController {
   getById(@Param('id') id: number) {
     return this.service.getById(id);
   }
+
+   // ✅ Thêm endpoint update order
+  @Put(':id')
+  update(@Param('id') id: number, @Body() dto: UpdateOrderDto) {
+    return this.service.update(id, dto);
+  }
+  
   @Patch(':id/status')
   updateStatus(@Param('id') id: number, @Body('status') status: UpdateStatusDto) {
     return this.service.updateStatus(id, status);

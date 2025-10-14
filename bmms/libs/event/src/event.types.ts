@@ -196,6 +196,8 @@ export interface OrderCreatedEvent extends BaseEvent {
       price: number;
     }>;
     totalAmount: number;
+    status: string;
+    createdAt: Date;
   };
 }
 
@@ -207,6 +209,11 @@ export interface OrderUpdatedEvent extends BaseEvent {
     customerId: number;
     previousStatus: string;
     newStatus: string;
+    changes?: {
+      notes?: string;
+      shippingAddress?: string;
+      billingAddress?: string;
+    };
     updatedAt: Date;
   };
 }
@@ -214,17 +221,19 @@ export interface OrderUpdatedEvent extends BaseEvent {
 export interface OrderCompletedEvent extends BaseEvent {
   eventType: 'order.completed';
   data: {
-    orderId: string;
+    orderId: number;
+    orderNumber: string;
     customerId: number;
+    totalAmount: number;
     completedAt: Date;
   };
 }
 
-
 export interface OrderCancelledEvent extends BaseEvent {
   eventType: 'order.cancelled';
   data: {
-    orderId: string;
+    orderId: number;
+    orderNumber: string;
     customerId: number;
     reason: string;
   };

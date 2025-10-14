@@ -46,6 +46,35 @@ export class BillingEventListener {
     }
   }
 
+  @EventPattern(event.EventTopics.ORDER_UPDATED)
+  async handleOrderUpdated(@Payload() event: event.OrderUpdatedEvent) {
+    try {
+      console.log('🔥 [billing-group] Received ORDER_UPDATED event');
+      this.logEvent(event);
+      
+      const { orderId, orderNumber, customerId, previousStatus, newStatus, updatedAt } = event.data;
+
+      console.log(`📝 Order ${orderNumber} updated:`);
+      console.log(`   Customer: ${customerId}`);
+      console.log(`   Status: ${previousStatus} → ${newStatus}`);
+      console.log(`   Updated at: ${updatedAt}`);
+
+      // Nếu order bị cancelled, có thể cần void invoice
+      if (newStatus === 'cancelled') {
+        console.log(`⚠️ Order ${orderNumber} cancelled - considering invoice void`);
+        // await this.billingService.voidInvoiceByOrderId(orderId);
+      }
+
+      // Nếu order completed, có thể trigger reminder
+      if (newStatus === 'completed') {
+        console.log(`✅ Order ${orderNumber} completed - checking invoice payment status`);
+        // await this.billingService.sendPaymentReminderIfUnpaid(orderId);
+      }
+
+    } catch (error) {
+      console.error('❌ Error handling ORDER_UPDATED:', error);
+    }
+  }
   /** -------- Payment Events -------- */
 
   @EventPattern(event.EventTopics.PAYMENT_SUCCESS)
@@ -93,7 +122,6 @@ export class BillingEventListener {
     }
   }
 
-  /** -------- Helper Methods -------- */
   /** -------- Helper Methods -------- */
   private logEvent<T extends { eventType: string; timestamp: Date | string }>(event: T) {
     const timestamp = typeof event.timestamp === 'string'

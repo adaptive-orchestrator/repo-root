@@ -18,8 +18,16 @@ import { AdjustInventoryDto } from './dto/adjust-inventory.dto';
 import { ReserveInventoryDto } from './dto/reserve-inventory.dto';
 import { ReleaseInventoryDto } from './dto/release-inventory.dto';
 import { BulkReserveDto } from './dto/bulk-reserve.dto';
-import { EventTopics } from '@bmms/event';
 
+// ✅ Import types và functions từ @bmms/event
+import {
+  EventTopics,
+  createBaseEvent,
+  InventoryCreatedEvent,
+  InventoryAdjustedEvent,
+  InventoryReservedEvent,
+  InventoryReleasedEvent,
+} from '@bmms/event';
 
 @Injectable()
 export class InventoryService {
@@ -35,10 +43,162 @@ export class InventoryService {
 
     @Inject('KAFKA_SERVICE')
     private readonly kafka: ClientKafka,
-  ) {}
+  ) { }
 
   // ============= CRUD =============
 
+  /**
+ * Create initial inventory for a new product
+ */
+  async createInventoryForProduct(
+    productId: number,
+    initialQuantity: number = 0,
+    reorderLevel: number = 10,
+  ): Promise<Inventory> {
+    const inventory = this.inventoryRepo.create({
+      productId,
+      quantity: initialQuantity,  // ✅ Total quantity
+      reserved: 0,                // ✅ Nothing reserved yet
+      reorderLevel,
+      isActive: true,
+    });
+
+    return this.inventoryRepo.save(inventory);
+  }
+
+  /**
+ * Reserve stock for an order
+ */
+  async reserveStock(
+    productId: number,
+    quantity: number,
+    orderId: string,
+    customerId: number,
+  ): Promise<InventoryReservation> {
+    // Find inventory
+    let inventory = await this.inventoryRepo.findOne({ where: { productId } });
+    if (!inventory) {
+    console.warn(`⚠️ Inventory not found for product ${productId}, creating with 0 stock...`);
+    
+    // ✅ Auto-create inventory record with 0 stock
+    inventory = await this.createInventoryForProduct(productId, 0, 10);
+    
+    // ❌ Throw error vì không có stock để reserve
+    throw new BadRequestException(
+      `Product ${productId} has no stock available. Please restock before creating orders.`
+    );
+  }
+
+    // ✅ Check available using helper method
+    const available = inventory.getAvailableQuantity();
+    if (available < quantity) {
+      throw new BadRequestException(
+        `Insufficient stock for product ${productId}. Available: ${available}, Requested: ${quantity}`
+      );
+    }
+
+    // Create reservation
+    const reservation = this.reservationRepo.create({
+      productId,
+      quantity,
+      orderId,
+      customerId,
+      status: 'active', // ✅ Đổi từ 'reserved' thành 'active' theo entity
+    });
+
+    const savedReservation = await this.reservationRepo.save(reservation);
+
+    // ✅ Update inventory (only increase reserved, quantity stays the same)
+    inventory.reserved += quantity;
+    await this.inventoryRepo.save(inventory);
+
+    // ✅ Emit INVENTORY_RESERVED event
+    const event: InventoryReservedEvent = {
+      ...createBaseEvent('inventory.reserved', 'inventory-service'),
+      eventType: 'inventory.reserved',
+      data: {
+        reservationId: savedReservation.id,
+        productId,
+        quantity,
+        orderId,
+        customerId,
+      },
+    };
+
+    console.log('🚀 Emitting inventory.reserved event:', event);
+    this.kafka.emit(EventTopics.INVENTORY_RESERVED, event);
+
+    return savedReservation;
+  }
+
+  /**
+ * Complete reservations when order is completed
+ */
+  async completeReservations(orderId: string): Promise<void> {
+    const reservations = await this.reservationRepo.find({
+      where: { orderId, status: 'active' }, // ✅ Đổi từ 'reserved' thành 'active'
+    });
+
+    for (const reservation of reservations) {
+      // Update reservation status
+      reservation.status = 'completed';
+      await this.reservationRepo.save(reservation);
+
+      // Update inventory (decrease both reserved and quantity)
+      const inventory = await this.inventoryRepo.findOne({
+        where: { productId: reservation.productId },
+      });
+
+      if (inventory) {
+        inventory.reserved -= reservation.quantity;  // ✅ Release reservation
+        inventory.quantity -= reservation.quantity;  // ✅ Deduct from total stock
+        await this.inventoryRepo.save(inventory);
+      }
+    }
+  }
+  /**
+   * Release reservations when order is cancelled
+   */
+  /**
+ * Release reservations when order is cancelled
+ */
+  async releaseReservations(orderId: string, reason: string): Promise<void> {
+    const reservations = await this.reservationRepo.find({
+      where: { orderId, status: 'active' }, // ✅ Đổi từ 'reserved' thành 'active'
+    });
+
+    for (const reservation of reservations) {
+      // Update reservation status
+      reservation.status = 'cancelled'; // ✅ Đổi từ 'released' thành 'cancelled'
+      await this.reservationRepo.save(reservation);
+
+      // Update inventory (only decrease reserved, quantity stays the same)
+      const inventory = await this.inventoryRepo.findOne({
+        where: { productId: reservation.productId },
+      });
+
+      if (inventory) {
+        // ✅ Just release reservation, quantity unchanged (stock returns to available)
+        inventory.reserved -= reservation.quantity;
+        await this.inventoryRepo.save(inventory);
+      }
+
+      // ✅ Emit INVENTORY_RELEASED event
+      const event: InventoryReleasedEvent = {
+        ...createBaseEvent('inventory.released', 'inventory-service'),
+        eventType: 'inventory.released',
+        data: {
+          productId: reservation.productId,
+          quantity: reservation.quantity,
+          orderId,
+          reason: reason as 'order_cancelled' | 'order_completed' | 'manual_release',
+        },
+      };
+
+      console.log('🚀 Emitting inventory.released event:', event);
+      this.kafka.emit(EventTopics.INVENTORY_RELEASED, event);
+    }
+  }
   async create(dto: CreateInventoryDto): Promise<Inventory> {
     const existing = await this.inventoryRepo.findOne({
       where: { productId: dto.productId },
@@ -54,18 +214,20 @@ export class InventoryService {
       this.inventoryRepo.create(dto),
     );
 
-    this.kafka.emit(EventTopics.INVENTORY_CREATED, {
-      eventId: crypto.randomUUID(),
-      eventType: EventTopics.INVENTORY_CREATED,
-      timestamp: new Date(),
-      source: 'inventory-svc',
+    // ✅ Emit với đúng structure
+    const event: InventoryCreatedEvent = {
+      ...createBaseEvent(EventTopics.INVENTORY_CREATED, 'inventory-service'),
+      eventType: 'inventory.created',
       data: {
         id: inventory.id,
         productId: inventory.productId,
         quantity: inventory.quantity,
         createdAt: inventory.createdAt,
       },
-    });
+    };
+
+    console.log('🚀 Emitting inventory.created event:', event);
+    this.kafka.emit(EventTopics.INVENTORY_CREATED, event);
 
     return inventory;
   }
@@ -125,19 +287,21 @@ export class InventoryService {
       }),
     );
 
-    this.kafka.emit(EventTopics.INVENTORY_ADJUSTED, {
-      eventId: crypto.randomUUID(),
-      eventType: EventTopics.INVENTORY_ADJUSTED,
-      timestamp: new Date(),
-      source: 'inventory-svc',
+    // ✅ Emit với đúng structure
+    const event: InventoryAdjustedEvent = {
+      ...createBaseEvent(EventTopics.INVENTORY_ADJUSTED, 'inventory-service'),
+      eventType: 'inventory.adjusted',
       data: {
         productId,
         previousQuantity,
         currentQuantity: updated.quantity,
         adjustment: dto.adjustment,
-        reason: dto.reason,
+        reason: dto.reason as 'restock' | 'damage' | 'loss' | 'adjustment' | 'correction',
       },
-    });
+    };
+
+    console.log('🚀 Emitting inventory.adjusted event:', event);
+    this.kafka.emit(EventTopics.INVENTORY_ADJUSTED, event);
 
     return updated;
   }
@@ -177,11 +341,10 @@ export class InventoryService {
       }),
     );
 
-    this.kafka.emit(EventTopics.INVENTORY_RESERVED, {
-      eventId: crypto.randomUUID(),
-      eventType: EventTopics.INVENTORY_RESERVED,
-      timestamp: new Date(),
-      source: 'inventory-svc',
+    // ✅ Emit với đúng structure
+    const event: InventoryReservedEvent = {
+      ...createBaseEvent(EventTopics.INVENTORY_RESERVED, 'inventory-service'),
+      eventType: 'inventory.reserved',
       data: {
         reservationId: reservation.id,
         productId: dto.productId,
@@ -189,7 +352,10 @@ export class InventoryService {
         orderId: dto.orderId,
         customerId: dto.customerId,
       },
-    });
+    };
+
+    console.log('🚀 Emitting inventory.reserved event:', event);
+    this.kafka.emit(EventTopics.INVENTORY_RESERVED, event);
 
     return reservation;
   }
@@ -260,18 +426,20 @@ export class InventoryService {
       }),
     );
 
-    this.kafka.emit(EventTopics.INVENTORY_RELEASED, {
-      eventId: crypto.randomUUID(),
-      eventType: EventTopics.INVENTORY_RELEASED,
-      timestamp: new Date(),
-      source: 'inventory-svc',
+    // ✅ Emit với đúng structure
+    const event: InventoryReleasedEvent = {
+      ...createBaseEvent(EventTopics.INVENTORY_RELEASED, 'inventory-service'),
+      eventType: 'inventory.released',
       data: {
         productId: dto.productId,
         quantity: reservation.quantity,
         orderId: dto.orderId,
-        reason: dto.reason,
+        reason: dto.reason as 'order_cancelled' | 'order_completed' | 'manual_release',
       },
-    });
+    };
+
+    console.log('🚀 Emitting inventory.released event:', event);
+    this.kafka.emit(EventTopics.INVENTORY_RELEASED, event);
 
     return updated;
   }

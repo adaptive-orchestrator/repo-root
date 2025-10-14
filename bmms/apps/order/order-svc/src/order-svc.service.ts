@@ -166,8 +166,57 @@ export class OrderSvcService {
       );
     }
 
-    Object.assign(order, dto);
-    return this.orderRepo.save(order);
+    // Lưu trạng thái và dữ liệu trước khi update
+    const previousStatus = order.status;
+    const previousData = {
+      notes: order.notes,
+      shippingAddress: order.shippingAddress,
+      billingAddress: order.billingAddress,
+    };
+
+    // Update order - chỉ update các field được phép
+    if (dto.notes !== undefined) order.notes = dto.notes;
+    if (dto.shippingAddress !== undefined) order.shippingAddress = dto.shippingAddress;
+    if (dto.billingAddress !== undefined) order.billingAddress = dto.billingAddress;
+
+    const updated = await this.orderRepo.save(order);
+
+    // Save history
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        orderId: updated.id,
+        orderNumber: updated.orderNumber,
+        action: 'updated',
+        previousStatus,
+        newStatus: updated.status,
+        notes: `Order updated: ${Object.keys(dto).filter(k => dto[k] !== undefined).join(', ')}`,
+      }),
+    );
+
+    // Emit ORDER_UPDATED event
+    this.kafka.emit(EventTopics.ORDER_UPDATED, {
+      eventId: crypto.randomUUID(),
+      eventType: EventTopics.ORDER_UPDATED,
+      timestamp: new Date(),
+      source: 'order-svc',
+      data: {
+        orderId: updated.id,
+        orderNumber: updated.orderNumber,
+        customerId: updated.customerId,
+        previousStatus,
+        newStatus: updated.status,
+        changes: {
+          notes: dto.notes,
+          shippingAddress: dto.shippingAddress,
+          billingAddress: dto.billingAddress,
+        },
+        updatedAt: updated.updatedAt,
+      },
+    });
+
+    console.log(`📤 [ORDER-SVC] Emitted ORDER_UPDATED event for order ${updated.orderNumber}`);
+
+    return updated;
   }
 
   // ============= STATUS MANAGEMENT =============
@@ -191,7 +240,6 @@ export class OrderSvcService {
         `Cannot transition from ${previousStatus} to ${dto.status}`,
       );
     }
-
 
     order.status = dto.status;
     const updated = await this.orderRepo.save(order);
@@ -234,6 +282,7 @@ export class OrderSvcService {
           orderId: order.id,
           orderNumber: order.orderNumber,
           customerId: order.customerId,
+          totalAmount: order.totalAmount,
           completedAt: new Date(),
         },
       });
