@@ -45,7 +45,7 @@ export class InventoryEventListener {
           const reservation = await this.inventoryService.reserveStock(
             productId,
             quantity,
-            orderId.toString(),
+            orderId,
             customerId,
           );
 

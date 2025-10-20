@@ -33,7 +33,7 @@ export class InventoryHistory {
   reason: string;
 
   @Column({ nullable: true })
-  orderId?: string;
+  orderId?: number;
 
   @Column({ nullable: true })
   notes?: string;

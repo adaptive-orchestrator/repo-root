@@ -19,7 +19,7 @@ export class InventoryReservation {
   quantity: number;
 
   @Column()
-  orderId: string;
+  orderId: number;
 
   @Column()
   customerId: number;

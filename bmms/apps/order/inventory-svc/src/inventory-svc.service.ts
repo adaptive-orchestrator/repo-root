@@ -72,7 +72,7 @@ export class InventoryService {
   async reserveStock(
     productId: number,
     quantity: number,
-    orderId: string,
+    orderId: number,
     customerId: number,
   ): Promise<InventoryReservation> {
     // Find inventory
@@ -134,7 +134,7 @@ export class InventoryService {
   /**
  * Complete reservations when order is completed
  */
-  async completeReservations(orderId: string): Promise<void> {
+  async completeReservations(orderId: number): Promise<void> {
     const reservations = await this.reservationRepo.find({
       where: { orderId, status: 'active' }, // ✅ Đổi từ 'reserved' thành 'active'
     });
@@ -162,7 +162,7 @@ export class InventoryService {
   /**
  * Release reservations when order is cancelled
  */
-  async releaseReservations(orderId: string, reason: string): Promise<void> {
+  async releaseReservations(orderId: number, reason: string): Promise<void> {
     const reservations = await this.reservationRepo.find({
       where: { orderId, status: 'active' }, // ✅ Đổi từ 'reserved' thành 'active'
     });

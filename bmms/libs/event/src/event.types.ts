@@ -157,7 +157,7 @@ export interface InventoryReservedEvent extends BaseEvent {
     reservationId: number;
     productId: number;
     quantity: number;
-    orderId: string;
+    orderId: number;
     customerId: number;
   };
 }
@@ -167,7 +167,7 @@ export interface InventoryReleasedEvent extends BaseEvent {
   data: {
     productId: number;
     quantity: number;
-    orderId: string;
+    orderId: number;
     reason: 'order_cancelled' | 'order_completed' | 'manual_release';
   };
 }
@@ -247,7 +247,7 @@ export interface PaymentSuccessEvent extends BaseEvent {
   data: {
     paymentId: string;
      invoiceId: string;
-    orderId: string;
+    orderId: number;
     amount: number;
     method: string;
     transactionId: string;
@@ -259,7 +259,7 @@ export interface PaymentFailedEvent extends BaseEvent {
   data: {
     paymentId: string;
      invoiceId: string;
-    orderId: string;
+    orderId: number;
     amount: number;
     reason: string;
   };

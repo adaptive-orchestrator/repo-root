@@ -9,86 +9,28 @@
   "monorepo": true,
   "root": "apps",
   "projects": {
-    "bmms": {
+    "api-gateway": {
       "type": "application",
-      "root": "apps/bmms",
+      "root": "apps/platform/api-gateway",
       "entryFile": "main",
-      "sourceRoot": "apps/bmms/src",
+      "sourceRoot": "apps/platform/api-gateway/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/bmms/tsconfig.app.json"
+        "tsConfigPath": "apps/platform/api-gateway/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/platform/api-gateway/src"
+          }
+        ]
       }
     },
-    "customer-svc": {
-      "type": "application",
-      "root": "apps/customer/customer-svc",
-      "entryFile": "main",
-      "sourceRoot": "apps/customer/customer-svc/src",
+    "auth": {
+      "type": "library",
+      "root": "libs/auth",
+      "entryFile": "index",
+      "sourceRoot": "libs/auth/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/customer/customer-svc/tsconfig.app.json",
-         "webpack": false
-      }
-    },
-    "crm-orchestrator": {
-      "type": "application",
-      "root": "apps/customer/crm-orchestrator",
-      "entryFile": "main",
-      "sourceRoot": "apps/customer/crm-orchestrator/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/customer/crm-orchestrator/tsconfig.app.json"
-      }
-    },
-    "catalogue-svc": {
-      "type": "application",
-      "root": "apps/product/catalogue-svc",
-      "entryFile": "main",
-      "sourceRoot": "apps/product/catalogue-svc/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/product/catalogue-svc/tsconfig.app.json"
-      }
-    },
-    "promotion-svc": {
-      "type": "application",
-      "root": "apps/product/promotion-svc",
-      "entryFile": "main",
-      "sourceRoot": "apps/product/promotion-svc/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/product/promotion-svc/tsconfig.app.json"
-      }
-    },
-    "pricing-engine": {
-      "type": "application",
-      "root": "apps/product/pricing-engine",
-      "entryFile": "main",
-      "sourceRoot": "apps/product/pricing-engine/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/product/pricing-engine/tsconfig.app.json"
-      }
-    },
-    "order-svc": {
-      "type": "application",
-      "root": "apps/order/order-svc",
-      "entryFile": "main",
-      "sourceRoot": "apps/order/order-svc/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/order/order-svc/tsconfig.app.json"
-      }
-    },
-    "subscription-svc": {
-      "type": "application",
-      "root": "apps/order/subscription-svc",
-      "entryFile": "main",
-      "sourceRoot": "apps/order/subscription-svc/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/order/subscription-svc/tsconfig.app.json"
-      }
-    },
-    "inventory-svc": {
-      "type": "application",
-      "root": "apps/order/inventory-svc",
-      "entryFile": "main",
-      "sourceRoot": "apps/order/inventory-svc/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/order/inventory-svc/tsconfig.app.json"
+        "tsConfigPath": "libs/auth/tsconfig.lib.json"
       }
     },
     "billing-svc": {
@@ -100,49 +42,65 @@
         "tsConfigPath": "apps/finance/billing-svc/tsconfig.app.json"
       }
     },
-    "payment-svc": {
+    "bmms": {
       "type": "application",
-      "root": "apps/finance/payment-svc",
+      "root": "apps/bmms",
       "entryFile": "main",
-      "sourceRoot": "apps/finance/payment-svc/src",
+      "sourceRoot": "apps/bmms/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/finance/payment-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/bmms/tsconfig.app.json"
       }
     },
-    "api-gateway": {
+    "catalogue-svc": {
       "type": "application",
-      "root": "apps/platform/api-gateway",
+      "root": "apps/product/catalogue-svc",
       "entryFile": "main",
-      "sourceRoot": "apps/platform/api-gateway/src",
+      "sourceRoot": "apps/product/catalogue-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/platform/api-gateway/tsconfig.app.json"
+        "tsConfigPath": "apps/product/catalogue-svc/tsconfig.app.json"
       }
     },
-    "llm-orchestrator": {
-      "type": "application",
-      "root": "apps/platform/llm-orchestrator",
-      "entryFile": "main",
-      "sourceRoot": "apps/platform/llm-orchestrator/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/platform/llm-orchestrator/tsconfig.app.json"
-      }
-    },
-    "rl-scheduler": {
-      "type": "application",
-      "root": "apps/platform/rl-scheduler",
-      "entryFile": "main",
-      "sourceRoot": "apps/platform/rl-scheduler/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/platform/rl-scheduler/tsconfig.app.json"
-      }
-    },
-    "auth": {
+    "common": {
       "type": "library",
-      "root": "libs/auth",
+      "root": "libs/common",
       "entryFile": "index",
-      "sourceRoot": "libs/auth/src",
+      "sourceRoot": "libs/common/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/auth/tsconfig.lib.json"
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
+      }
+    },
+    "crm-orchestrator": {
+      "type": "application",
+      "root": "apps/customer/crm-orchestrator",
+      "entryFile": "main",
+      "sourceRoot": "apps/customer/crm-orchestrator/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/customer/crm-orchestrator/tsconfig.app.json"
+      }
+    },
+    "customer-svc": {
+      "type": "application",
+      "root": "apps/customer/customer-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/customer/customer-svc/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/customer/customer-svc/tsconfig.app.json",
+        "webpack": false
+      }
+    },
+    "auth-svc": {
+      "type": "application",
+      "root": "apps/customer/auth-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/customer/auth-svc/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/customer/auth-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/customer/auth-svc/src"
+          }
+        ]
       }
     },
     "db": {
@@ -163,13 +121,76 @@
         "tsConfigPath": "libs/event/tsconfig.lib.json"
       }
     },
-    "common": {
-      "type": "library",
-      "root": "libs/common",
-      "entryFile": "index",
-      "sourceRoot": "libs/common/src",
+    "inventory-svc": {
+      "type": "application",
+      "root": "apps/order/inventory-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/order/inventory-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/common/tsconfig.lib.json"
+        "tsConfigPath": "apps/order/inventory-svc/tsconfig.app.json"
+      }
+    },
+    "llm-orchestrator": {
+      "type": "application",
+      "root": "apps/platform/llm-orchestrator",
+      "entryFile": "main",
+      "sourceRoot": "apps/platform/llm-orchestrator/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/platform/llm-orchestrator/tsconfig.app.json"
+      }
+    },
+    "order-svc": {
+      "type": "application",
+      "root": "apps/order/order-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/order/order-svc/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/order/order-svc/tsconfig.app.json"
+      }
+    },
+    "payment-svc": {
+      "type": "application",
+      "root": "apps/finance/payment-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/finance/payment-svc/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/finance/payment-svc/tsconfig.app.json"
+      }
+    },
+    "pricing-engine": {
+      "type": "application",
+      "root": "apps/product/pricing-engine",
+      "entryFile": "main",
+      "sourceRoot": "apps/product/pricing-engine/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/product/pricing-engine/tsconfig.app.json"
+      }
+    },
+    "promotion-svc": {
+      "type": "application",
+      "root": "apps/product/promotion-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/product/promotion-svc/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/product/promotion-svc/tsconfig.app.json"
+      }
+    },
+    "rl-scheduler": {
+      "type": "application",
+      "root": "apps/platform/rl-scheduler",
+      "entryFile": "main",
+      "sourceRoot": "apps/platform/rl-scheduler/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/platform/rl-scheduler/tsconfig.app.json"
+      }
+    },
+    "subscription-svc": {
+      "type": "application",
+      "root": "apps/order/subscription-svc",
+      "entryFile": "main",
+      "sourceRoot": "apps/order/subscription-svc/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/order/subscription-svc/tsconfig.app.json"
       }
     }
   }

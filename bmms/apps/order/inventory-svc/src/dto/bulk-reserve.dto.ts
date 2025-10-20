@@ -3,6 +3,6 @@ export class BulkReserveDto {
     productId: number;
     quantity: number;
   }>;
-  orderId: string;
+  orderId: number;
   customerId: number;
 }
