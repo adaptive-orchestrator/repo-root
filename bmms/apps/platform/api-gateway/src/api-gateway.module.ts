@@ -7,6 +7,7 @@ import { LlmOrchestratorModule } from './resources/llm-orchestrator/llm-orchestr
 import { CatalogueModule } from './resources/catalogue/catalogue.module';
 import { InventoryModule } from './resources/inventory/inventory.module';
 import { CustomerModule } from './resources/customer/customer.module';
+import { OrderModule } from './resources/order/order.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { CustomerModule } from './resources/customer/customer.module';
     LlmOrchestratorModule,
     CatalogueModule,
     InventoryModule,
+    OrderModule,
   ],
   controllers: [
     ApiGatewayController,

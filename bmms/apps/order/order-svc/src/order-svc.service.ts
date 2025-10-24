@@ -4,10 +4,13 @@ import {
   BadRequestException,
   ConflictException,
   Inject,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClientKafka } from '@nestjs/microservices';
+import type { ClientGrpc } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
@@ -17,12 +20,34 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { AddItemDto } from './dto/add-item.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
-import { EventTopics } from '@bmms/event';
+import { createBaseEvent } from '@bmms/event';
 
+interface ICustomerGrpcService {
+  getCustomerById(data: { id: number }): any;
+}
 
+interface ICatalogueGrpcService {
+  getProductById(data: { id: number }): any;
+}
+
+interface IInventoryGrpcService {
+  checkAvailability(data: { productId: number; quantity: number }): any;
+  reserveStock(data: { productId: number; quantity: number; orderId: number; customerId: number }): any;
+}
+
+interface ValidatedOrderItem {
+  productId: number;
+  quantity: number;
+  price: number;
+  notes?: string;
+}
 
 @Injectable()
-export class OrderSvcService {
+export class OrderSvcService implements OnModuleInit {
+  private customerService: ICustomerGrpcService;
+  private catalogueService: ICatalogueGrpcService;
+  private inventoryService: IInventoryGrpcService;
+
   constructor(
     @InjectRepository(Order)
     private readonly orderRepo: Repository<Order>,
@@ -35,26 +60,48 @@ export class OrderSvcService {
 
     @Inject('KAFKA_SERVICE')
     private readonly kafka: ClientKafka,
-  ) { }
+
+    @Inject('CUSTOMER_PACKAGE')
+    private readonly customerClient: ClientGrpc,
+
+    @Inject('CATALOGUE_PACKAGE')
+    private readonly catalogueClient: ClientGrpc,
+
+    @Inject('INVENTORY_PACKAGE')
+    private readonly inventoryClient: ClientGrpc,
+  ) {}
+
+  onModuleInit() {
+    this.customerService = this.customerClient.getService<ICustomerGrpcService>('CustomerService');
+    this.catalogueService = this.catalogueClient.getService<ICatalogueGrpcService>('CatalogueService');
+    this.inventoryService = this.inventoryClient.getService<IInventoryGrpcService>('InventoryService');
+  }
 
   // ============= CRUD =============
 
   async create(dto: CreateOrderDto): Promise<Order> {
-    // Generate order number
+    // 1. Validate customer exists
+    await this.validateCustomer(dto.customerId);
+
+    // 2. Validate all products exist and get prices
+    const validatedItems = await this.validateProducts(dto.items);
+
+    // 3. Generate order number
     const orderNumber = await this.generateOrderNumber();
 
-    // Calculate totals
-    const subtotal = dto.items.reduce(
+    // 4. Calculate totals
+    const subtotal = validatedItems.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
     );
 
+    // 5. Create order
     const order = await this.orderRepo.save(
       this.orderRepo.create({
         orderNumber,
         customerId: dto.customerId,
         subtotal,
-        totalAmount: subtotal, // Will be updated after tax/shipping calculation
+        totalAmount: subtotal,
         notes: dto.notes,
         shippingAddress: dto.shippingAddress,
         billingAddress: dto.billingAddress,
@@ -62,9 +109,9 @@ export class OrderSvcService {
       }),
     );
 
-    // Add items
+    // 6. Add items
     const items = await Promise.all(
-      dto.items.map((item) =>
+      validatedItems.map((item) =>
         this.itemRepo.save(
           this.itemRepo.create({
             orderId: order.id,
@@ -82,7 +129,7 @@ export class OrderSvcService {
     order.totalAmount = order.calculateTotal();
     await this.orderRepo.save(order);
 
-    // Save history
+    // 7. Save history
     await this.historyRepo.save(
       this.historyRepo.create({
         orderId: order.id,
@@ -93,27 +140,81 @@ export class OrderSvcService {
       }),
     );
 
-    this.kafka.emit(EventTopics.ORDER_CREATED, {
-      eventId: crypto.randomUUID(),
-      eventType: EventTopics.ORDER_CREATED,
-      timestamp: new Date(),
-      source: 'order-svc',
+    // 8. Emit order.created event (Inventory will listen and reserve stock)
+    const orderCreatedEvent = {
+      ...createBaseEvent('order.created', 'order-svc'),
+      eventType: 'order.created',
       data: {
         orderId: order.id,
         orderNumber: order.orderNumber,
         customerId: order.customerId,
-        items: items.map((item) => ({
+        totalAmount: Number(order.totalAmount),
+        items: items.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
-          price: item.price,
+          price: Number(item.price),
         })),
-        totalAmount: order.totalAmount,
-        status: order.status,
         createdAt: order.createdAt,
       },
-    });
+    };
+
+    console.log('🚀 Emitting order.created event:', orderCreatedEvent);
+    this.kafka.emit('order.created', orderCreatedEvent);
 
     return order;
+  }
+
+  /**
+   * Validate customer exists
+   */
+  private async validateCustomer(customerId: number): Promise<void> {
+    try {
+      const response: any = await firstValueFrom(
+        this.customerService.getCustomerById({ id: customerId })
+      );
+      if (!response || !response.customer) {
+        throw new NotFoundException(`Customer ${customerId} not found`);
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new BadRequestException(`Failed to validate customer: ${error.message}`);
+    }
+  }
+
+  /**
+   * Validate products exist and return with actual prices from catalogue
+   */
+  private async validateProducts(items: Array<{ productId: number; quantity: number; price: number; notes?: string }>): Promise<ValidatedOrderItem[]> {
+    const validatedItems: ValidatedOrderItem[] = [];
+
+    for (const item of items) {
+      try {
+        // Get product from catalogue
+        const response: any = await firstValueFrom(
+          this.catalogueService.getProductById({ id: item.productId })
+        );
+
+        if (!response || !response.product) {
+          throw new NotFoundException(`Product ${item.productId} not found in catalogue`);
+        }
+
+        const product = response.product;
+
+        // Use catalogue price (ignore client-provided price for security)
+        validatedItems.push({
+          productId: item.productId,
+          quantity: item.quantity,
+          price: Number(product.price), // Use price from catalogue
+          notes: item.notes,
+        });
+
+      } catch (error) {
+        if (error instanceof NotFoundException) throw error;
+        throw new BadRequestException(`Failed to validate product ${item.productId}: ${error.message}`);
+      }
+    }
+
+    return validatedItems;
   }
 
   async list(): Promise<Order[]> {
@@ -129,6 +230,11 @@ export class OrderSvcService {
       relations: ['items'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // Alias for gRPC compatibility
+  async getByCustomerId(customerId: string, page?: number, limit?: number): Promise<Order[]> {
+    return this.listByCustomer(Number(customerId));
   }
 
   async getById(id: number): Promise<Order> {
@@ -194,9 +300,9 @@ export class OrderSvcService {
     );
 
     // Emit ORDER_UPDATED event
-    this.kafka.emit(EventTopics.ORDER_UPDATED, {
+    this.kafka.emit('order.updated', {
       eventId: crypto.randomUUID(),
-      eventType: EventTopics.ORDER_UPDATED,
+      eventType: 'order.updated',
       timestamp: new Date(),
       source: 'order-svc',
       data: {
@@ -256,9 +362,9 @@ export class OrderSvcService {
       }),
     );
 
-    this.kafka.emit(EventTopics.ORDER_UPDATED, {
+    this.kafka.emit('order.updated', {
       eventId: crypto.randomUUID(),
-      eventType: EventTopics.ORDER_UPDATED,
+      eventType: 'order.updated',
       timestamp: new Date(),
       source: 'order-svc',
       data: {
@@ -273,9 +379,9 @@ export class OrderSvcService {
 
     // Emit specific event for order completed
     if (dto.status === 'delivered') {
-      this.kafka.emit(EventTopics.ORDER_COMPLETED, {
+      this.kafka.emit('order.completed', {
         eventId: crypto.randomUUID(),
-        eventType: EventTopics.ORDER_COMPLETED,
+        eventType: 'order.completed',
         timestamp: new Date(),
         source: 'order-svc',
         data: {
@@ -289,9 +395,9 @@ export class OrderSvcService {
     }
 
     if (dto.status === 'cancelled') {
-      this.kafka.emit(EventTopics.ORDER_CANCELLED, {
+      this.kafka.emit('order.cancelled', {
         eventId: crypto.randomUUID(),
-        eventType: EventTopics.ORDER_CANCELLED,
+        eventType: 'order.cancelled',
         timestamp: new Date(),
         source: 'order-svc',
         data: {
@@ -304,6 +410,14 @@ export class OrderSvcService {
     }
 
     return updated;
+  }
+
+  // Cancel order shortcut method
+  async cancel(id: number, reason?: string): Promise<Order> {
+    return this.updateStatus(id, { 
+      status: 'cancelled', 
+      notes: reason || 'Order cancelled by customer' 
+    });
   }
 
   // ============= ITEM MANAGEMENT =============
@@ -454,20 +568,5 @@ export class OrderSvcService {
       avgOrderValue: Number(avgOrderValue.toFixed(2)),
       totalItems,
     };
-  }
-
-  async cancel(id: number, reason?: string): Promise<Order> {
-    const order = await this.getById(id);
-
-    if (['delivered', 'cancelled'].includes(order.status)) {
-      throw new BadRequestException(
-        `Cannot cancel order in ${order.status} status`,
-      );
-    }
-
-    return this.updateStatus(id, {
-      status: 'cancelled',
-      notes: reason,
-    });
   }
 }

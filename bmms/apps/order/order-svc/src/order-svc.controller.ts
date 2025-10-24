@@ -1,41 +1,49 @@
-
- import { Controller, Post, Get, Patch, Delete, Body, Param, Put } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
+import { GrpcMethod } from '@nestjs/microservices';
 import { OrderSvcService } from './order-svc.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 
-@Controller('api/v1/orders')
+@Controller()
 export class OrderSvcController {
   constructor(private readonly service: OrderSvcService) {}
-  @Post()
-  create(@Body() dto: any) {
-    return this.service.create(dto);
-  }
-  @Get()
-  list() {
-    return this.service.list();
-  }
-  @Get(':id')
-  getById(@Param('id') id: number) {
-    return this.service.getById(id);
+
+  @GrpcMethod('OrderService', 'CreateOrder')
+  async createOrder(data: any) {
+    return this.service.create(data);
   }
 
-   // ✅ Thêm endpoint update order
-  @Put(':id')
-  update(@Param('id') id: number, @Body() dto: UpdateOrderDto) {
-    return this.service.update(id, dto);
+  @GrpcMethod('OrderService', 'GetAllOrders')
+  async getAllOrders(data: { page?: number; limit?: number; customerId?: string }) {
+    return this.service.list();
   }
-  
-  @Patch(':id/status')
-  updateStatus(@Param('id') id: number, @Body('status') status: UpdateStatusDto) {
-    return this.service.updateStatus(id, status);
+
+  @GrpcMethod('OrderService', 'GetOrderById')
+  async getOrderById(data: { id: number }) {
+    return this.service.getById(data.id);
   }
-  @Post(':id/items')
-  addItem(@Param('id') id: number, @Body() dto: any) {
-    return this.service.addItem(id, dto);
+
+  @GrpcMethod('OrderService', 'GetOrdersByCustomer')
+  async getOrdersByCustomer(data: { customerId: string; page?: number; limit?: number }) {
+    return this.service.getByCustomerId(data.customerId, data.page, data.limit);
   }
-  @Delete(':id/items/:itemId')
-  deleteItem(@Param('id') id: number, @Param('itemId') itemId: number) {
-    return this.service.deleteItem(id, itemId);
+
+  @GrpcMethod('OrderService', 'UpdateOrderStatus')
+  async updateOrderStatus(data: { id: number; status: string }) {
+    return this.service.updateStatus(data.id, { status: data.status } as UpdateStatusDto);
+  }
+
+  @GrpcMethod('OrderService', 'CancelOrder')
+  async cancelOrder(data: { id: number; reason?: string }) {
+    return this.service.cancel(data.id, data.reason);
+  }
+
+  @GrpcMethod('OrderService', 'AddItemToOrder')
+  async addItemToOrder(data: { orderId: number; productId: string; quantity: number; unitPrice: number }) {
+    return this.service.addItem(data.orderId, {
+      productId: Number(data.productId), // Convert string to number
+      quantity: data.quantity,
+      price: data.unitPrice, // Map unitPrice to price
+    });
   }
 }
