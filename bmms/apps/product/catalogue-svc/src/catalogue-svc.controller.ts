@@ -1,43 +1,62 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
+import { GrpcMethod } from '@nestjs/microservices';
 import { CatalogueSvcService } from './catalogue-svc.service';
-import { CreateProductDto } from '../dto/create-product.dto';
-import { CreatePlanDto } from '../dto/create-plan.dto';
-import { CreateFeatureDto } from '../dto/create-feature.dto';
 
-@Controller('catalogue')
+@Controller()
 export class CatalogueSvcController {
   constructor(private readonly service: CatalogueSvcService) {}
 
   // Products
-  @Post('products')
-  createProduct(@Body() dto: CreateProductDto) {
-    return this.service.createProduct(dto);
+  @GrpcMethod('CatalogueService', 'CreateProduct')
+  createProduct(data: any) {
+    return this.service.createProduct(data);
   }
 
-  @Get('products')
-  listProducts() {
-    return this.service.listProducts();
+  @GrpcMethod('CatalogueService', 'GetAllProducts')
+  async getAllProducts() {
+    const products = await this.service.listProducts();
+    return { products };
+  }
+
+  @GrpcMethod('CatalogueService', 'GetProductById')
+  async getProductById(data: { id: number }) {
+    const product = await this.service.findProductById(data.id);
+    return { product, message: 'Product found' };
   }
 
   // Plans
-  @Post('plans')
-  createPlan(@Body() dto: CreatePlanDto) {
-    return this.service.createPlan(dto);
+  @GrpcMethod('CatalogueService', 'CreatePlan')
+  createPlan(data: any) {
+    return this.service.createPlan(data);
   }
 
-  @Get('plans')
-  listPlans() {
-    return this.service.listPlans();
+  @GrpcMethod('CatalogueService', 'GetAllPlans')
+  async getAllPlans() {
+    const plans = await this.service.listPlans();
+    return { plans };
+  }
+
+  @GrpcMethod('CatalogueService', 'GetPlanById')
+  async getPlanById(data: { id: number }) {
+    const plan = await this.service.findPlanById(data.id);
+    return { plan, message: 'Plan found' };
   }
 
   // Features
-  @Post('features')
-  createFeature(@Body() dto: CreateFeatureDto) {
-    return this.service.createFeature(dto);
+  @GrpcMethod('CatalogueService', 'CreateFeature')
+  createFeature(data: any) {
+    return this.service.createFeature(data);
   }
 
-  @Get('features')
-  listFeatures() {
-    return this.service.listFeatures();
+  @GrpcMethod('CatalogueService', 'GetAllFeatures')
+  async getAllFeatures() {
+    const features = await this.service.listFeatures();
+    return { features };
+  }
+
+  @GrpcMethod('CatalogueService', 'GetFeatureById')
+  async getFeatureById(data: { id: number }) {
+    const feature = await this.service.findFeatureById(data.id);
+    return { feature, message: 'Feature found' };
   }
 }

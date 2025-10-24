@@ -72,7 +72,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/product/catalogue-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/product/catalogue-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/product/catalogue-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/product/catalogue-svc/src"
+          }
+        ]
       }
     },
     "common": {

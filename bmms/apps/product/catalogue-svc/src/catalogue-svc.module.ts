@@ -13,7 +13,7 @@ import { Feature, Plan, Product } from './catalogue.entity';
         // Tự động load .env từ root
       }),
       TypeOrmModule.forFeature([Plan, Feature,Product]), 
-      DbModule.forRoot({ prefix: 'CUSTOMER_SVC' }),
+      DbModule.forRoot({ prefix: 'CATALOGUE_SVC' }),
       EventModule.forRoot({
         clientId: 'catalogue-svc',
         consumerGroupId: 'catalogue-group',
