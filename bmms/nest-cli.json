@@ -54,7 +54,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/finance/billing-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/finance/billing-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/finance/billing-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/finance/billing-svc/src"
+          }
+        ]
       }
     },
     "bmms": {
@@ -178,7 +184,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/finance/payment-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/finance/payment-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/finance/payment-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/finance/payment-svc/src"
+          }
+        ]
       }
     },
     "code-indexer": {
