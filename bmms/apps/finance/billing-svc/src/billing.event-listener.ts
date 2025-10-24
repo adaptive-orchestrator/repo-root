@@ -1,50 +1,188 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Inject, OnModuleInit } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
+import type { ClientGrpc } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 import { BillingService } from './billing-svc.service';
 import * as event from '@bmms/event';
 
+interface IOrderGrpcService {
+  getOrderById(data: { id: number }): any;
+}
 
 @Controller()
-export class BillingEventListener {
+export class BillingEventListener implements OnModuleInit {
+  // Track reserved items by orderId for aggregation
+  private orderReservations: Map<number, Array<{
+    productId: number;
+    quantity: number;
+    reservationId: number;
+  }>> = new Map();
+
+  private orderService: IOrderGrpcService;
+
   constructor(
     private readonly billingService: BillingService,
+    @Inject('ORDER_PACKAGE')
+    private readonly orderClient: ClientGrpc,
     //private readonly notificationService: NotificationService,
   ) { }
 
-  /** -------- Order Events -------- */
-  @EventPattern(event.EventTopics.ORDER_CREATED) // ← EventTopics.ORDER_CREATED = 'order.created'
-  async handleOrderCreated(@Payload() event: event.OrderCreatedEvent) {
+  onModuleInit() {
+    this.orderService = this.orderClient.getService<IOrderGrpcService>('OrderService');
+  }
+
+  /** -------- Inventory Events -------- */
+  @EventPattern(event.EventTopics.INVENTORY_RESERVED)
+  async handleInventoryReserved(@Payload() event: event.InventoryReservedEvent) {
     try {
-      console.log('📥 [billing-group] Received ORDER_CREATED event');
-      console.log('📦 Order ID:', event.data.orderId);
-
+      console.log('📥 [billing-group] Received INVENTORY_RESERVED event');
       this.logEvent(event);
-     const { orderId, orderNumber, customerId, items, totalAmount } = event.data;
 
-      // Auto-create invoice from order
-      await this.billingService.create({
+      const { reservationId, productId, quantity, orderId, customerId } = event.data;
+
+      console.log(`📦 Inventory reserved:`);
+      console.log(`   Order ID: ${orderId}`);
+      console.log(`   Product ID: ${productId}`);
+      console.log(`   Quantity: ${quantity}`);
+      console.log(`   Reservation ID: ${reservationId}`);
+
+      // Store reservation for this order
+      if (!this.orderReservations.has(orderId)) {
+        this.orderReservations.set(orderId, []);
+      }
+
+      this.orderReservations.get(orderId)!.push({
+        productId,
+        quantity,
+        reservationId,
+      });
+
+      console.log(`📊 Current reservations for order ${orderId}: ${this.orderReservations.get(orderId)!.length} items`);
+
+      // Note: We need to check if all items for this order are reserved
+      // This requires knowing the expected item count from the original order
+      // For now, we'll create invoice after a short delay to allow all reservations to arrive
+      // In production, you might want to:
+      // 1. Store expected item count from order.created event
+      // 2. Check if all items are reserved before creating invoice
+      // 3. Or use a saga pattern with explicit coordination
+
+      // For simplicity, we'll wait 2 seconds and then create invoice
+      // (assuming all inventory.reserved events arrive within this window)
+      setTimeout(async () => {
+        await this.tryCreateInvoiceForOrder(orderId, customerId);
+      }, 2000);
+
+    } catch (error) {
+      console.error('❌ Error handling INVENTORY_RESERVED:', error);
+    }
+  }
+
+  /**
+   * Try to create invoice if all reservations for order are ready
+   */
+  private async tryCreateInvoiceForOrder(orderId: number, customerId: number) {
+    try {
+      const reservations = this.orderReservations.get(orderId);
+      
+      if (!reservations || reservations.length === 0) {
+        console.log(`⚠️ No reservations found for order ${orderId}`);
+        return;
+      }
+
+      console.log(`💰 Creating invoice for order ${orderId} with ${reservations.length} items`);
+
+      // Fetch order details from Order Service via gRPC
+      let orderDetails: any;
+      try {
+        const response: any = await firstValueFrom(
+          this.orderService.getOrderById({ id: orderId })
+        );
+        orderDetails = response.order;
+        console.log(`✅ Fetched order details for order ${orderId}:`, {
+          orderNumber: orderDetails.orderNumber,
+          customerId: orderDetails.customerId,
+          totalAmount: orderDetails.totalAmount,
+          itemCount: orderDetails.items?.length || 0,
+        });
+      } catch (error) {
+        console.error(`❌ Failed to fetch order ${orderId} from Order Service:`, error.message);
+        // Fallback to basic invoice creation
+        orderDetails = {
+          orderNumber: `ORD-${Date.now()}-${orderId}`,
+          customerId,
+          subtotal: 0,
+          tax: 0,
+          totalAmount: 0,
+          items: [],
+        };
+      }
+
+      // Use order details if available, otherwise calculate from reservations
+      const items = orderDetails.items?.length > 0
+        ? orderDetails.items.map((item: any) => ({
+            productId: item.productId,
+            description: item.notes || `Product ${item.productId}`,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            totalPrice: item.subtotal || (item.quantity * item.price),
+          }))
+        : reservations.map(item => ({
+            productId: item.productId,
+            description: `Product ${item.productId}`,
+            quantity: item.quantity,
+            unitPrice: 100, // Placeholder
+            totalPrice: item.quantity * 100,
+          }));
+
+      const subtotal = orderDetails.subtotal || items.reduce((sum: number, item: any) => sum + item.totalPrice, 0);
+      const tax = orderDetails.tax || (subtotal * 0.1);
+      const shippingCost = orderDetails.shippingCost || 0;
+      const discount = orderDetails.discount || 0;
+      const totalAmount = orderDetails.totalAmount || (subtotal + tax + shippingCost - discount);
+
+      // Create invoice
+      const invoice = await this.billingService.create({
         orderId,
-        orderNumber,
-        customerId,
-        items: items.map(item => ({
-          productId: item.productId,
-          description: `Product ${item.productId}`,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          totalPrice: item.quantity * item.price,
-        })),
-        subtotal: totalAmount,
-        tax: 0,
+        orderNumber: orderDetails.orderNumber,
+        customerId: orderDetails.customerId,
+        items,
+        subtotal,
+        tax,
+        shippingCost,
+        discount,
         totalAmount,
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       });
 
-      console.log(`✅ Invoice created for order ${orderId}`);
+      console.log(`✅ Invoice created for order ${orderId}:`, {
+        invoiceNumber: invoice.invoiceNumber,
+        totalAmount: invoice.totalAmount,
+        itemCount: items.length,
+      });
+
+      // Clean up reservations from memory
+      this.orderReservations.delete(orderId);
+
+      // Note: invoice.created event is already emitted by billingService.create()
+      // Payment service will listen to that event
+
     } catch (error) {
-      console.error('❌ Error handling ORDER_CREATED:', error);
+      console.error(`❌ Error creating invoice for order ${orderId}:`, error);
     }
   }
+
+  /** -------- Order Events -------- */
+  
+  // NOTE: We no longer create invoice on ORDER_CREATED
+  // Instead, we wait for INVENTORY_RESERVED events to ensure stock is available
+  // before generating invoices
+  
+  // @EventPattern(event.EventTopics.ORDER_CREATED)
+  // async handleOrderCreated(@Payload() event: event.OrderCreatedEvent) {
+  //   // Disabled - using INVENTORY_RESERVED instead
+  // }
 
   @EventPattern(event.EventTopics.ORDER_UPDATED)
   async handleOrderUpdated(@Payload() event: event.OrderUpdatedEvent) {
