@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Customer } from './customer.entity';
+import { Customer, CustomerSegment, LifecycleStage } from './customer.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClientKafka } from '@nestjs/microservices';
@@ -38,13 +38,27 @@ export class CustomerSvcService {
     return customer;
   }
 
-  async findAll(): Promise<Customer[]> {
-    return this.repo.find();
+  async findAll(page: number = 1, limit: number = 10, segment?: string): Promise<Customer[]> {
+    const query = this.repo.createQueryBuilder('customer');
+    
+    if (segment) {
+      query.where('customer.segment = :segment', { segment });
+    }
+    
+    query.skip((page - 1) * limit).take(limit);
+    
+    return query.getMany();
   }
 
   async findOne(id: number): Promise<Customer> {
     const customer = await this.repo.findOne({ where: { id } });
     if (!customer) throw new NotFoundException(`Customer ${id} not found`);
+    return customer;
+  }
+
+  async findByEmail(email: string): Promise<Customer> {
+    const customer = await this.repo.findOne({ where: { email } });
+    if (!customer) throw new NotFoundException(`Customer with email ${email} not found`);
     return customer;
   }
 
@@ -58,8 +72,9 @@ export class CustomerSvcService {
     await this.repo.delete(id);
   }
 
-  async updateSegment(id: number, segment: string): Promise<Customer> {
+  async updateSegment(id: number, segment: CustomerSegment): Promise<Customer> {
     const customer = await this.findOne(id);
+    const previousSegment = customer.segment;
     customer.segment = segment;
     const saved = await this.repo.save(customer);
 
@@ -73,7 +88,7 @@ export class CustomerSvcService {
       },
     };
 
-    console.log('🚀 Emitting segment.changed event:', event);
+    console.log(`🚀 Emitting segment.changed event: ${previousSegment} → ${segment}`);
     this.kafka.emit('segment.changed', event);
 
     return saved;

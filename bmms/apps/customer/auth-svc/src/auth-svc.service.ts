@@ -9,6 +9,8 @@ import * as bcrypt from 'bcrypt';
 import { addMinutes } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Repository } from 'typeorm';
+import { ClientKafka } from '@nestjs/microservices';
+import { createBaseEvent, UserCreatedEvent } from '@bmms/event';
 
 
 
@@ -26,6 +28,7 @@ export class AuthSvcService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly mailerService: MailerService,
+    @Inject('KAFKA_SERVICE') private readonly kafka: ClientKafka,
   ) { }
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -59,6 +62,20 @@ export class AuthSvcService {
     const user = this.userRepo.create({ email, password: hashed, name });
     const savedUser = await this.userRepo.save(user);
 
+    // Emit user.created event to Kafka
+    const userCreatedEvent: UserCreatedEvent = {
+      ...createBaseEvent('user.created', 'auth-svc'),
+      eventType: 'user.created',
+      data: {
+        id: savedUser.id,
+        email: savedUser.email,
+        name: savedUser.name,
+        createdAt: new Date(),
+      },
+    };
+
+    this.kafka.emit('user.created', userCreatedEvent);
+    this.logger.log(`User created event emitted for user: ${savedUser.email}`);
 
     const { password: _, resetToken, resetTokenExpires, ...safeUser } = savedUser;
     return safeUser;

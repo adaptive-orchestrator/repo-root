@@ -13,6 +13,16 @@ export interface BaseEvent {
  * Customer Events
  */
 
+export interface UserCreatedEvent extends BaseEvent {
+  eventType: 'user.created';
+  data: {
+    id: number;
+    email: string;
+    name: string;
+    createdAt: Date;
+  };
+}
+
 export interface CustomerCreatedEvent extends BaseEvent {
   eventType: 'customer.created';
   data: {

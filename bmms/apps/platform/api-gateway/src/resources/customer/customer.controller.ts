@@ -1,0 +1,141 @@
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Query,
+  Body,
+  ParseIntPipe,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { CustomerService } from './customer.service';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CustomerResponseDto, CustomersListResponseDto } from './dto/customer-response.dto';
+
+@ApiTags('Customer')
+@Controller('customers')
+export class CustomerController {
+  constructor(private readonly customerService: CustomerService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get all customers',
+    description: 'Retrieve a paginated list of customers with optional filtering by segment',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({
+    name: 'segment',
+    required: false,
+    type: String,
+    example: 'gold',
+    description: 'Filter by customer segment (bronze, silver, gold, platinum)',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of customers retrieved successfully',
+    type: CustomersListResponseDto,
+  })
+  async getAllCustomers(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('segment') segment?: string,
+  ) {
+    return this.customerService.getAllCustomers(page, limit, segment);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get customer by ID',
+    description: 'Retrieve detailed information about a specific customer',
+  })
+  @ApiParam({ name: 'id', type: Number, example: 1 })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Customer details retrieved successfully',
+    type: CustomerResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Customer not found',
+  })
+  async getCustomerById(@Param('id', ParseIntPipe) id: number) {
+    const result: any = await this.customerService.getCustomerById(id);
+    return result.customer;
+  }
+
+  @Get('email/:email')
+  @ApiOperation({
+    summary: 'Get customer by email',
+    description: 'Find a customer using their email address',
+  })
+  @ApiParam({ name: 'email', type: String, example: 'john.doe@example.com' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Customer found',
+    type: CustomerResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Customer not found',
+  })
+  async getCustomerByEmail(@Param('email') email: string) {
+    const result: any = await this.customerService.getCustomerByEmail(email);
+    return result.customer;
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update customer',
+    description: 'Update customer profile information (name, email, segment, tenantId)',
+  })
+  @ApiParam({ name: 'id', type: Number, example: 1 })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Customer updated successfully',
+    type: CustomerResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Customer not found',
+  })
+  async updateCustomer(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateDto: UpdateCustomerDto,
+  ) {
+    const result: any = await this.customerService.updateCustomer(id, updateDto);
+    return result.customer;
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Delete customer',
+    description: 'Permanently delete a customer from the system',
+  })
+  @ApiParam({ name: 'id', type: Number, example: 1 })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Customer deleted successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Customer deleted successfully',
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Customer not found',
+  })
+  async deleteCustomer(@Param('id', ParseIntPipe) id: number) {
+    return this.customerService.deleteCustomer(id);
+  }
+}

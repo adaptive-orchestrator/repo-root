@@ -6,6 +6,7 @@ import { AuthModule } from './resources/auth/auth.module';
 import { LlmOrchestratorModule } from './resources/llm-orchestrator/llm-orchestrator.module';
 import { CatalogueModule } from './resources/catalogue/catalogue.module';
 import { InventoryModule } from './resources/inventory/inventory.module';
+import { CustomerModule } from './resources/customer/customer.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { InventoryModule } from './resources/inventory/inventory.module';
       envFilePath: '.env',
     }),
     AuthModule,
+    CustomerModule,
     LlmOrchestratorModule,
     CatalogueModule,
     InventoryModule,

@@ -1,38 +1,60 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
+import { GrpcMethod } from '@nestjs/microservices';
 import { CustomerSvcService } from './customer-svc.service';
-import { CreateCustomerDto } from '../dto/create-customer.dto';
-import { UpdateCustomerDto } from '../dto/update-customer.dto';
-@Controller('customers')  // ← Thêm 'customers' vào đây
+
+@Controller()
 export class CustomerSvcController {
+  private readonly logger = new Logger(CustomerSvcController.name);
+
   constructor(private readonly service: CustomerSvcService) {}
 
-  @Post()
-  create(@Body() dto: CreateCustomerDto) {
-    return this.service.create(dto);
+  @GrpcMethod('CustomerService', 'GetAllCustomers')
+  async getAllCustomers(data: any) {
+    this.logger.log('GetAllCustomers called');
+    const { page = 1, limit = 10, segment } = data;
+    
+    const customers = await this.service.findAll(page, limit, segment);
+    return {
+      customers,
+      total: customers.length,
+      page,
+      limit,
+    };
   }
 
-  @Get()
-  findAll() {
-    return this.service.findAll();
+  @GrpcMethod('CustomerService', 'GetCustomerById')
+  async getCustomerById(data: { id: number }) {
+    this.logger.log(`GetCustomerById called with id: ${data.id}`);
+    const customer = await this.service.findOne(data.id);
+    return { customer };
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: number) {
-    return this.service.findOne(id);
+  @GrpcMethod('CustomerService', 'GetCustomerByEmail')
+  async getCustomerByEmail(data: { email: string }) {
+    this.logger.log(`GetCustomerByEmail called with email: ${data.email}`);
+    const customer = await this.service.findByEmail(data.email);
+    return { customer };
   }
 
-  @Put(':id')
-  update(@Param('id') id: number, @Body() dto: UpdateCustomerDto) {
-    return this.service.update(id, dto);
+  @GrpcMethod('CustomerService', 'UpdateCustomer')
+  async updateCustomer(data: any) {
+    this.logger.log(`UpdateCustomer called with id: ${data.id}`);
+    const { id, ...updateData } = data;
+    const customer = await this.service.update(id, updateData);
+    return { customer };
   }
 
-  @Patch(':id/segment')
-  updateSegment(@Param('id') id: number, @Body('segment') segment: string) {
-    return this.service.updateSegment(id, segment);
+  @GrpcMethod('CustomerService', 'DeleteCustomer')
+  async deleteCustomer(data: { id: number }) {
+    this.logger.log(`DeleteCustomer called with id: ${data.id}`);
+    await this.service.remove(data.id);
+    return { success: true, message: 'Customer deleted successfully' };
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: number) {
-    return this.service.remove(id);
+  @GrpcMethod('CustomerService', 'CreateCustomerInternal')
+  async createCustomerInternal(data: { name: string; email: string }) {
+    this.logger.log(`CreateCustomerInternal called for email: ${data.email}`);
+    const customer = await this.service.create(data);
+    return { customer };
   }
 }

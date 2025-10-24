@@ -167,7 +167,50 @@ curl -X POST http://localhost:3000/auth/login \
   }'
 ```
 
-### 📦 Catalogue (`/catalogue`)
+### � Customer (`/customers`)
+
+> **Note**: Customers are NOT created via API. They are automatically created when users sign up through Auth service via event-driven architecture.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/customers` | Get all customers (with pagination & filtering) |
+| GET | `/customers/:id` | Get customer by ID |
+| GET | `/customers/email/:email` | Get customer by email |
+| PATCH | `/customers/:id` | Update customer profile |
+| DELETE | `/customers/:id` | Delete customer |
+
+**Query Parameters for GET /customers:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 10)
+- `segment` (optional): Filter by segment (bronze, silver, gold, platinum)
+
+**Example - Get All Customers:**
+```bash
+curl -X GET "http://localhost:3000/customers?page=1&limit=10&segment=gold"
+```
+
+**Example - Get Customer by ID:**
+```bash
+curl -X GET http://localhost:3000/customers/1
+```
+
+**Example - Get Customer by Email:**
+```bash
+curl -X GET http://localhost:3000/customers/email/john.doe@example.com
+```
+
+**Example - Update Customer:**
+```bash
+curl -X PATCH http://localhost:3000/customers/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe Updated",
+    "segment": "platinum",
+    "tenantId": "tenant-456"
+  }'
+```
+
+### �📦 Catalogue (`/catalogue`)
 
 #### Products
 
@@ -260,11 +303,43 @@ curl -X POST http://localhost:3000/catalogue/features \
 
 1. **Synchronous (gRPC)**: Client-server request-response
    - API Gateway ↔️ Microservices
-   - Inter-service communication
+   - Inter-service communication (e.g., Inventory validates products with Catalogue)
 
 2. **Asynchronous (Kafka)**: Event-driven messaging
-   - Domain events (product.created, order.placed, etc.)
+   - Domain events (user.created, customer.created, order.placed, etc.)
    - Event sourcing and CQRS patterns
+   - Decoupled service communication
+
+### Event-Driven Architecture
+
+#### User Registration Flow
+
+When a user signs up through the Auth service, an event-driven flow automatically creates their customer profile:
+
+```
+User Signup → Auth Service → Kafka Event → Customer Service
+                    ↓                            ↓
+              user.created event         Auto-create Customer
+```
+
+**Implementation Details:**
+
+1. **Auth Service** (`auth-svc`)
+   - Handles user authentication (login, signup, password reset)
+   - On signup: Creates User entity and emits `user.created` event to Kafka
+   - Event payload: `{ id, email, name, createdAt }`
+
+2. **Customer Service** (`customer-svc`)
+   - Manages customer profiles, segments, and preferences
+   - Listens to `user.created` event via `@EventPattern('user.created')`
+   - Automatically creates Customer profile when event received
+   - Emits `customer.created` event for downstream services
+
+**Benefits:**
+- **Separation of Concerns**: Auth owns authentication, Customer owns profile data
+- **Decoupling**: Services don't need direct API calls to each other
+- **Resilience**: If Customer service is down, events are queued in Kafka
+- **Scalability**: Multiple consumers can process events independently
 
 ### Domain-Driven Design
 

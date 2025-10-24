@@ -5,32 +5,43 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
-// Load .env trực tiếp trước khi khởi động NestJS
-dotenv.config({ 
-  path: path.join(process.cwd(), 'apps/customer/customer-svc/.env') 
-});
+// Load .env from bmms root directory
+const envPath = path.resolve(process.cwd(), '.env');
+dotenv.config({ path: envPath });
 
 async function bootstrap() {
-  const app = await NestFactory.create(CustomerSvcModule);
-   // ⭐ THÊM DÒNG NÀY
-    console.log('⏳ Starting Kafka microservices...');
-     app.connectMicroservice<MicroserviceOptions>({
-      transport: Transport.KAFKA,
-      options: {
-        client: {
-          clientId: 'customer-svc',
-          brokers: process.env.KAFKA_BROKER?.split(',') || ['localhost:9092'],
-        },
-        consumer: {
-          groupId: 'customer-group',
-          allowAutoTopicCreation: true,
-        },
-      },
-    });
-    await app.startAllMicroservices();
-  app.setGlobalPrefix('api');
-  console.log('✅ Customer Service running on http://localhost:3000/api');
-  await app.listen(3000);
+  const configService = new ConfigService();
   
+  // Create hybrid application (both gRPC and Kafka)
+  const app = await NestFactory.create(CustomerSvcModule);
+
+  // Connect gRPC microservice
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'customer',
+      protoPath: path.join(__dirname, './proto/customer.proto'),
+      url: configService.get('GRPC_LISTEN_CUSTOMER_URL') || '0.0.0.0:50052',
+    },
+  });
+
+  // Connect Kafka for event listening
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.KAFKA,
+    options: {
+      client: {
+        clientId: 'customer-svc',
+        brokers: (configService.get('KAFKA_BROKER') || 'localhost:9092').split(','),
+      },
+      consumer: {
+        groupId: 'customer-group',
+        allowAutoTopicCreation: true,
+      },
+    },
+  });
+
+  await app.startAllMicroservices();
+  console.log('✅ Customer Service (gRPC) running on port 50052');
+  console.log('✅ Customer Service (Kafka) listening for events');
 }
 bootstrap();

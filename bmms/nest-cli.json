@@ -106,6 +106,12 @@
       "sourceRoot": "apps/customer/customer-svc/src",
       "compilerOptions": {
         "tsConfigPath": "apps/customer/customer-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/customer/customer-svc/src"
+          }
+        ],
         "webpack": false
       }
     },

@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DbModule } from '@bmms/db';
 import { CustomerSvcController } from './customer-svc.controller';
 import { CustomerSvcService } from './customer-svc.service';
+import { CustomerEventListener } from './customer.event-listener';
 import { EventModule } from '@bmms/event';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Customer } from './customer.entity';
@@ -20,7 +21,7 @@ import { Customer } from './customer.entity';
       consumerGroupId: 'customer-group',
     }),
   ],
-  controllers: [CustomerSvcController],
+  controllers: [CustomerSvcController, CustomerEventListener],
   providers: [CustomerSvcService],
    exports: [CustomerSvcService], 
 })
