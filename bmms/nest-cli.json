@@ -133,7 +133,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/order/inventory-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/order/inventory-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/order/inventory-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/order/inventory-svc/src"
+          }
+        ]
       }
     },
     "llm-orchestrator": {

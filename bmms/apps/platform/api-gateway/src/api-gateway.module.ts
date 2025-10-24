@@ -5,6 +5,7 @@ import { ApiGatewayService } from './api-gateway.service';
 import { AuthModule } from './resources/auth/auth.module';
 import { LlmOrchestratorModule } from './resources/llm-orchestrator/llm-orchestrator.module';
 import { CatalogueModule } from './resources/catalogue/catalogue.module';
+import { InventoryModule } from './resources/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CatalogueModule } from './resources/catalogue/catalogue.module';
     AuthModule,
     LlmOrchestratorModule,
     CatalogueModule,
+    InventoryModule,
   ],
   controllers: [
     ApiGatewayController,

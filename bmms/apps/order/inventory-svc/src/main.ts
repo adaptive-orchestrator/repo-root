@@ -1,28 +1,25 @@
 import { NestFactory } from '@nestjs/core';
 import { InventorySvcModule } from './inventory-svc.module';
+import { ConfigService } from '@nestjs/config';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(InventorySvcModule);
-// ⭐ THÊM DÒNG NÀY
-  console.log('⏳ Starting Kafka microservices...');
-   app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.KAFKA,
+  const appContext = await NestFactory.createApplicationContext(InventorySvcModule);
+  const configService = appContext.get(ConfigService);
+
+  const grpcUrl = configService.get<string>('GRPC_LISTEN_INVENTORY_URL');
+
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(InventorySvcModule, {
+    transport: Transport.GRPC,
     options: {
-      client: {
-        clientId: 'inventory-svc',
-        brokers: process.env.KAFKA_BROKER?.split(',') || ['localhost:9092'],
-      },
-      consumer: {
-        groupId: 'inventory-group',
-        allowAutoTopicCreation: true,
-      },
+      package: 'inventory',
+      protoPath: join(__dirname, './proto/inventory.proto'),
+      url: grpcUrl,
     },
   });
-  await app.startAllMicroservices();
-  await app.listen(process.env.port ?? 3002);
-   
-  console.log('🚀 Billing Service is running on: http://localhost:3001');
-  console.log('🎧 Kafka Consumer is listening...'); // Log để biết đã start
+
+  await app.listen();
+  console.log(`🚀 Inventory gRPC Service is running on ${grpcUrl}`);
 }
 bootstrap();

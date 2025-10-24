@@ -4,10 +4,13 @@ import {
   BadRequestException,
   ConflictException,
   Inject,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
 import { ClientKafka } from '@nestjs/microservices';
+import type { ClientGrpc } from '@nestjs/microservices';
+import { firstValueFrom, catchError } from 'rxjs';
 
 import { Inventory } from './entities/inventory.entity';
 import { InventoryReservation } from './entities/inventory-reservation.entity';
@@ -29,8 +32,14 @@ import {
   InventoryReleasedEvent,
 } from '@bmms/event';
 
+interface CatalogueGrpcService {
+  getProductById(data: { id: number }): any;
+}
+
 @Injectable()
-export class InventoryService {
+export class InventoryService implements OnModuleInit {
+  private catalogueGrpcService: CatalogueGrpcService;
+
   constructor(
     @InjectRepository(Inventory)
     private readonly inventoryRepo: Repository<Inventory>,
@@ -43,7 +52,33 @@ export class InventoryService {
 
     @Inject('KAFKA_SERVICE')
     private readonly kafka: ClientKafka,
+
+    @Inject('CATALOGUE_PACKAGE')
+    private readonly catalogueClient: ClientGrpc,
   ) { }
+
+  onModuleInit() {
+    this.catalogueGrpcService = this.catalogueClient.getService<CatalogueGrpcService>('CatalogueService');
+  }
+
+  /**
+   * Validate product exists in catalogue
+   */
+  private async validateProduct(productId: number): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.catalogueGrpcService.getProductById({ id: productId }).pipe(
+          catchError((error) => {
+            throw new NotFoundException(`Product ${productId} not found in catalogue`);
+          }),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      console.warn(`⚠️ Unable to validate product ${productId} with catalogue service`);
+      // Continue anyway if catalogue service is down
+    }
+  }
 
   // ============= CRUD =============
 
@@ -55,6 +90,9 @@ export class InventoryService {
     initialQuantity: number = 0,
     reorderLevel: number = 10,
   ): Promise<Inventory> {
+    // ✅ Validate product exists in catalogue
+    await this.validateProduct(productId);
+
     const inventory = this.inventoryRepo.create({
       productId,
       quantity: initialQuantity,  // ✅ Total quantity
@@ -75,6 +113,9 @@ export class InventoryService {
     orderId: number,
     customerId: number,
   ): Promise<InventoryReservation> {
+    // ✅ Validate product exists in catalogue
+    await this.validateProduct(productId);
+
     // Find inventory
     let inventory = await this.inventoryRepo.findOne({ where: { productId } });
     if (!inventory) {
