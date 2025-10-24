@@ -42,6 +42,8 @@ export const EventTopics = {
   PAYMENT_INITIATED: 'payment.initiated',
   PAYMENT_SUCCESS: 'payment.success',
   PAYMENT_FAILED: 'payment.failed',
+  PAYMENT_RETRY: 'payment.retry',
+  PAYMENT_REFUNDED: 'payment.refunded',
 
   // Billing events
   INVOICE_CREATED: 'invoice.created',

@@ -252,15 +252,35 @@ export interface OrderCancelledEvent extends BaseEvent {
 /**
  * Payment Events
  */
+/**
+ * Payment Events
+ */
+export interface PaymentInitiatedEvent extends BaseEvent {
+  eventType: 'payment.initiated';
+  data: {
+    paymentId: string;
+    invoiceId: number;
+    invoiceNumber: string;
+    orderId: number;
+    customerId: number;
+    amount: number;
+    currency: string;
+    method: string; // 'vnpay' | 'momo' | 'bank_transfer' | 'cash'
+    paymentUrl?: string; // For redirect to payment gateway
+  };
+}
+
 export interface PaymentSuccessEvent extends BaseEvent {
   eventType: 'payment.success';
   data: {
     paymentId: string;
-     invoiceId: string;
+    invoiceId: string;
     orderId: number;
+    customerId: number;
     amount: number;
     method: string;
-    transactionId: string;
+    transactionId: string; // Transaction ID from payment gateway (VNPay, etc.)
+    paidAt: Date;
   };
 }
 
@@ -268,10 +288,40 @@ export interface PaymentFailedEvent extends BaseEvent {
   eventType: 'payment.failed';
   data: {
     paymentId: string;
-     invoiceId: string;
+    invoiceId: string;
     orderId: number;
+    customerId: number;
     amount: number;
+    method: string;
     reason: string;
+    errorCode?: string;
+    canRetry: boolean;
+  };
+}
+
+export interface PaymentRetryEvent extends BaseEvent {
+  eventType: 'payment.retry';
+  data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number;
+    customerId: number;
+    amount: number;
+    retryCount: number;
+    previousFailureReason: string;
+  };
+}
+
+export interface PaymentRefundedEvent extends BaseEvent {
+  eventType: 'payment.refunded';
+  data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number;
+    customerId: number;
+    refundAmount: number;
+    reason: string;
+    refundedAt: Date;
   };
 }
 

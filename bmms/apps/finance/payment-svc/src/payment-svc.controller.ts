@@ -72,4 +72,116 @@ export class PaymentController {
   async confirmPayment(@Body() dto: ConfirmPaymentDto): Promise<Payment> {
     return this.paymentService.confirmPayment(dto);
   }
+
+  // =================== TEST EVENT EMITTERS ===================
+
+  @Post(':paymentId/test/success')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[TEST] Emit payment.success event for testing flow' })
+  async testEmitSuccess(
+    @Param('paymentId') paymentId: string,
+    @Body() data: {
+      invoiceId: number;
+      orderId?: number;
+      customerId?: number;
+      amount: number;
+      transactionId?: string;
+    },
+  ): Promise<{ message: string }> {
+    await this.paymentService.emitPaymentSuccess({
+      paymentId,
+      invoiceId: data.invoiceId,
+      orderId: data.orderId || null,
+      customerId: data.customerId || null,
+      amount: data.amount,
+      method: 'vnpay',
+      transactionId: data.transactionId || `TEST-TXN-${Date.now()}`,
+      paidAt: new Date(),
+    });
+    
+    return { message: `payment.success event emitted for payment ${paymentId}` };
+  }
+
+  @Post(':paymentId/test/failed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[TEST] Emit payment.failed event for testing flow' })
+  async testEmitFailed(
+    @Param('paymentId') paymentId: string,
+    @Body() data: {
+      invoiceId: number;
+      orderId?: number;
+      customerId?: number;
+      amount: number;
+      reason: string;
+      errorCode?: string;
+      canRetry?: boolean;
+    },
+  ): Promise<{ message: string }> {
+    await this.paymentService.emitPaymentFailed({
+      paymentId,
+      invoiceId: data.invoiceId,
+      orderId: data.orderId || null,
+      customerId: data.customerId || null,
+      amount: data.amount,
+      method: 'vnpay',
+      reason: data.reason,
+      errorCode: data.errorCode,
+      canRetry: data.canRetry,
+    });
+    
+    return { message: `payment.failed event emitted for payment ${paymentId}` };
+  }
+
+  @Post(':paymentId/test/retry')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[TEST] Emit payment.retry event for testing flow' })
+  async testEmitRetry(
+    @Param('paymentId') paymentId: string,
+    @Body() data: {
+      invoiceId: number;
+      orderId?: number;
+      customerId?: number;
+      amount: number;
+      retryCount: number;
+      previousFailureReason: string;
+    },
+  ): Promise<{ message: string }> {
+    await this.paymentService.emitPaymentRetry({
+      paymentId,
+      invoiceId: data.invoiceId,
+      orderId: data.orderId || null,
+      customerId: data.customerId || null,
+      amount: data.amount,
+      retryCount: data.retryCount,
+      previousFailureReason: data.previousFailureReason,
+    });
+    
+    return { message: `payment.retry event emitted for payment ${paymentId}` };
+  }
+
+  @Post(':paymentId/test/refunded')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '[TEST] Emit payment.refunded event for testing flow' })
+  async testEmitRefunded(
+    @Param('paymentId') paymentId: string,
+    @Body() data: {
+      invoiceId: number;
+      orderId?: number;
+      customerId?: number;
+      refundAmount: number;
+      reason: string;
+    },
+  ): Promise<{ message: string }> {
+    await this.paymentService.emitPaymentRefunded({
+      paymentId,
+      invoiceId: data.invoiceId,
+      orderId: data.orderId || null,
+      customerId: data.customerId || null,
+      refundAmount: data.refundAmount,
+      reason: data.reason,
+      refundedAt: new Date(),
+    });
+    
+    return { message: `payment.refunded event emitted for payment ${paymentId}` };
+  }
 }

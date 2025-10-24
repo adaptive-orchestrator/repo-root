@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
 import { PaymentHistory } from './entities/payment-history.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
+import { ClientKafka } from '@nestjs/microservices';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class PaymentService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(PaymentHistory)
     private readonly paymentHistoryRepository: Repository<PaymentHistory>,
+    @Inject('EVENT_SERVICE') private readonly kafkaClient: ClientKafka,
   ) {}
 
   // =================== INITIATE PAYMENT ===================
@@ -249,6 +251,7 @@ export class PaymentService {
   async registerInvoice(invoiceData: {
     invoiceId: number;
     invoiceNumber: string;
+    orderId?: number | null;  // Optional orderId
     customerId: number;
     totalAmount: number;
     dueDate: Date;
@@ -317,7 +320,9 @@ export class PaymentService {
     paymentId: string;
     invoiceId: number;
     amount: number;
+    method?: string;  // Optional
     transactionId: string;
+    paidAt?: Date;  // Optional
   }) {
     try {
       this.logger.log(
@@ -364,6 +369,7 @@ export class PaymentService {
     paymentId: string;
     invoiceId: number;
     reason: string;
+    errorCode?: string;  // Optional
   }) {
     try {
       this.logger.log(`❌ Marking payment as failed: ${data.paymentId}`);
@@ -452,5 +458,265 @@ export class PaymentService {
    */
   private generateTransactionId(): string {
     return `TXN-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  }  /**
+   * Create pending payment (stub for event listener)
+   */
+  async createPendingPayment(data: {
+    invoiceId: number;
+    invoiceNumber: string;
+    orderId: number | null;
+    customerId: number;
+    amount: number;
+    currency: string;
+    method: string;
+    status: string;
+  }): Promise<Payment> {
+    this.logger.log(`📝 Creating pending payment for invoice ${data.invoiceNumber}`);
+    
+    const payment = this.paymentRepository.create({
+      invoiceId: data.invoiceId,
+      invoiceNumber: data.invoiceNumber,
+      customerId: data.customerId,
+      totalAmount: data.amount,
+      status: 'initiated', // Use enum value instead of data.status
+      createdAt: new Date(),
+    });
+
+    const savedPayment = await this.paymentRepository.save(payment);
+    this.logger.log(`✅ Pending payment created: ${savedPayment.id}`);
+    
+    return savedPayment;
   }
+
+
+
+// =================== STUB METHODS FOR EVENT HANDLERS ===================
+
+  /**
+   * Create retry payment attempt (stub for future VNPay integration)
+   */
+  async createRetryPayment(data: {
+    originalPaymentId: string;
+    invoiceId: number;
+    orderId: number | null;
+    customerId: number | null;
+    amount: number;
+    retryCount: number;
+  }): Promise<Payment> {
+    this.logger.log(`🔄 Creating retry payment for invoice ${data.invoiceId} (attempt #${data.retryCount})`);
+    
+    // TODO: Implement retry payment creation logic
+    const payment = this.paymentRepository.create({
+      invoiceId: data.invoiceId,
+      customerId: data.customerId || 0, // Use 0 as default if null
+      totalAmount: data.amount,
+      status: 'initiated',
+      createdAt: new Date(),
+    });
+
+    const savedPayment = await this.paymentRepository.save(payment);
+    this.logger.log(`✅ Retry payment created: ${savedPayment.id}`);
+    
+    return savedPayment;
+  }
+
+  /**
+   * Mark payment as refunded (stub for future VNPay integration)
+   */
+  async markPaymentRefunded(data: {
+    paymentId: string;
+    invoiceId: number;
+    refundAmount: number;
+    reason: string;
+    refundedAt?: Date;  // Add optional refundedAt
+  }): Promise<void> {
+    this.logger.log(`💰 Marking payment ${data.paymentId} as refunded`);
+    
+    // TODO: Implement refund logic
+    // For now, mark as failed (since refunded is not in enum)
+    await this.paymentRepository.update(
+      { id: data.paymentId },
+      { 
+        status: 'failed', // Use 'failed' as closest enum value
+        failureReason: `REFUNDED: ${data.reason}`,
+        updatedAt: new Date(),
+      }
+    );
+
+    await this.logPaymentHistory(
+      data.paymentId,
+      data.invoiceId,
+      'refunded',
+      `Refunded ${data.refundAmount} VND. Reason: ${data.reason}`,
+    );
+
+    this.logger.log(`✅ Payment ${data.paymentId} marked as refunded`);
+  }
+
+  // =================== EVENT EMITTER METHODS FOR TESTING ===================
+
+  /**
+   * Emit payment.success event (for testing flow)
+   */
+  async emitPaymentSuccess(data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number | null;
+    customerId: number | null;
+    amount: number;
+    method: string;
+    transactionId: string;
+    paidAt?: Date;
+  }): Promise<void> {
+    this.logger.log(`📤 Emitting payment.success event for payment ${data.paymentId}`);
+    
+    this.kafkaClient.emit('payment.success', {
+      data: {
+        paymentId: data.paymentId,
+        invoiceId: data.invoiceId,
+        orderId: data.orderId,
+        customerId: data.customerId,
+        amount: data.amount,
+        currency: 'VND',
+        method: data.method,
+        transactionId: data.transactionId,
+        paidAt: data.paidAt || new Date(),
+        timestamp: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ payment.success event emitted`);
+  }
+
+  /**
+   * Emit payment.failed event (for testing flow)
+   */
+  async emitPaymentFailed(data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number | null;
+    customerId: number | null;
+    amount: number;
+    method: string;
+    reason: string;
+    errorCode?: string;
+    canRetry?: boolean;
+  }): Promise<void> {
+    this.logger.log(`📤 Emitting payment.failed event for payment ${data.paymentId}`);
+    
+    this.kafkaClient.emit('payment.failed', {
+      data: {
+        paymentId: data.paymentId,
+        invoiceId: data.invoiceId,
+        orderId: data.orderId,
+        customerId: data.customerId,
+        amount: data.amount,
+        currency: 'VND',
+        method: data.method,
+        reason: data.reason,
+        errorCode: data.errorCode || 'UNKNOWN',
+        canRetry: data.canRetry !== undefined ? data.canRetry : true,
+        timestamp: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ payment.failed event emitted`);
+  }
+
+  /**
+   * Emit payment.retry event (for testing flow)
+   */
+  async emitPaymentRetry(data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number | null;
+    customerId: number | null;
+    amount: number;
+    retryCount: number;
+    previousFailureReason: string;
+  }): Promise<void> {
+    this.logger.log(`📤 Emitting payment.retry event for payment ${data.paymentId}`);
+    
+    this.kafkaClient.emit('payment.retry', {
+      data: {
+        paymentId: data.paymentId,
+        invoiceId: data.invoiceId,
+        orderId: data.orderId,
+        customerId: data.customerId,
+        amount: data.amount,
+        currency: 'VND',
+        retryCount: data.retryCount,
+        previousFailureReason: data.previousFailureReason,
+        timestamp: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ payment.retry event emitted`);
+  }
+
+  /**
+   * Emit payment.initiated event (called from event listener)
+   */
+  async emitPaymentInitiated(data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number | null;
+    customerId: number | null;
+    amount: number;
+    currency: string;
+    method: string;
+    paymentUrl?: string;
+  }): Promise<void> {
+    this.logger.log(`📤 Emitting payment.initiated event for payment ${data.paymentId}`);
+    
+    this.kafkaClient.emit('payment.initiated', {
+      data: {
+        paymentId: data.paymentId,
+        invoiceId: data.invoiceId,
+        orderId: data.orderId,
+        customerId: data.customerId,
+        amount: data.amount,
+        currency: data.currency,
+        method: data.method,
+        paymentUrl: data.paymentUrl || `http://localhost:3000/payments/${data.paymentId}`,
+        timestamp: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ payment.initiated event emitted`);
+  }
+
+  /**
+   * Emit payment.refunded event (for testing flow)
+   */
+  async emitPaymentRefunded(data: {
+    paymentId: string;
+    invoiceId: number;
+    orderId: number | null;
+    customerId: number | null;
+    refundAmount: number;
+    reason: string;
+    refundedAt?: Date;
+  }): Promise<void> {
+    this.logger.log(`📤 Emitting payment.refunded event for payment ${data.paymentId}`);
+    
+    this.kafkaClient.emit('payment.refunded', {
+      data: {
+        paymentId: data.paymentId,
+        invoiceId: data.invoiceId,
+        orderId: data.orderId,
+        customerId: data.customerId,
+        refundAmount: data.refundAmount,
+        originalAmount: data.refundAmount,
+        currency: 'VND',
+        reason: data.reason,
+        refundedAt: data.refundedAt || new Date(),
+        timestamp: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ payment.refunded event emitted`);
+  }
+
 }
+
