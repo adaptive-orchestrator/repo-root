@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { GrpcMethod } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PaymentService } from './payment-svc.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -183,5 +184,43 @@ export class PaymentController {
     });
     
     return { message: `payment.refunded event emitted for payment ${paymentId}` };
+  }
+
+  // =================== gRPC METHODS FOR API GATEWAY ===================
+  
+  @GrpcMethod('PaymentService', 'InitiatePayment')
+  async grpcInitiatePayment(data: CreatePaymentDto) {
+    const payment = await this.paymentService.initiatePayment(data);
+    return { payment };
+  }
+
+  @GrpcMethod('PaymentService', 'ConfirmPayment')
+  async grpcConfirmPayment(data: ConfirmPaymentDto) {
+    const payment = await this.paymentService.confirmPayment(data);
+    return { payment };
+  }
+
+  @GrpcMethod('PaymentService', 'GetPaymentById')
+  async grpcGetPaymentById(data: { id: number }) {
+    const payment = await this.paymentService.getById(data.id);
+    return { payment };
+  }
+
+  @GrpcMethod('PaymentService', 'GetAllPayments')
+  async grpcGetAllPayments() {
+    const payments = await this.paymentService.list();
+    return { payments };
+  }
+
+  @GrpcMethod('PaymentService', 'GetPaymentsByInvoice')
+  async grpcGetPaymentsByInvoice(data: { invoiceId: number }) {
+    const payments = await this.paymentService.getByInvoice(data.invoiceId);
+    return { payments };
+  }
+
+  @GrpcMethod('PaymentService', 'GetPaymentStats')
+  async grpcGetPaymentStats() {
+    const stats = await this.paymentService.getPaymentStats();
+    return stats;
   }
 }

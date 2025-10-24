@@ -8,6 +8,7 @@ import { CatalogueModule } from './resources/catalogue/catalogue.module';
 import { InventoryModule } from './resources/inventory/inventory.module';
 import { CustomerModule } from './resources/customer/customer.module';
 import { OrderModule } from './resources/order/order.module';
+import { BillingModule } from './resources/billing/billing.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { OrderModule } from './resources/order/order.module';
     CatalogueModule,
     InventoryModule,
     OrderModule,
+    BillingModule,
   ],
   controllers: [
     ApiGatewayController,

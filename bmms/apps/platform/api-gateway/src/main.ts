@@ -29,6 +29,7 @@ async function bootstrap() {
     )
     .addTag('Authentication', 'Endpoints for user authentication and authorization')
     .addTag('Comments', 'Endpoints for comments management')
+    .addTag('Invoices', 'Endpoints for invoice and billing management')
     .build();
     
   const documentFactory = () => SwaggerModule.createDocument(app, config);

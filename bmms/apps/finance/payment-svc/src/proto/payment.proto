@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package payment;
+
+service PaymentService {
+  // Payment CRUD operations
+  rpc InitiatePayment (InitiatePaymentRequest) returns (PaymentResponse);
+  rpc ConfirmPayment (ConfirmPaymentRequest) returns (PaymentResponse);
+  rpc GetPaymentById (PaymentIdRequest) returns (PaymentResponse);
+  rpc GetAllPayments (Empty) returns (PaymentListResponse);
+  rpc GetPaymentsByInvoice (InvoiceIdRequest) returns (PaymentListResponse);
+  rpc GetPaymentStats (Empty) returns (PaymentStatsResponse);
+}
+
+// Common messages
+message Empty {}
+
+// Payment messages
+message Payment {
+  int32 id = 1;
+  int32 invoiceId = 2;
+  optional int32 orderId = 3;
+  optional int32 customerId = 4;
+  double totalAmount = 5;
+  string status = 6;
+  string method = 7;
+  optional string transactionId = 8;
+  optional string failureReason = 9;
+  optional string paidAt = 10;
+  string createdAt = 11;
+  string updatedAt = 12;
+}
+
+message InitiatePaymentRequest {
+  int32 invoiceId = 1;
+  optional int32 orderId = 2;
+  optional int32 customerId = 3;
+  double amount = 4;
+  string method = 5;
+}
+
+message ConfirmPaymentRequest {
+  string paymentId = 1;
+  string status = 2;
+  optional string transactionId = 3;
+  optional string failureReason = 4;
+}
+
+message PaymentIdRequest {
+  int32 id = 1;
+}
+
+message InvoiceIdRequest {
+  int32 invoiceId = 1;
+}
+
+message PaymentResponse {
+  Payment payment = 1;
+}
+
+message PaymentListResponse {
+  repeated Payment payments = 1;
+}
+
+message PaymentStatsResponse {
+  int32 totalPayments = 1;
+  int32 successfulPayments = 2;
+  int32 failedPayments = 3;
+  int32 pendingPayments = 4;
+  double totalAmount = 5;
+  double successfulAmount = 6;
+}

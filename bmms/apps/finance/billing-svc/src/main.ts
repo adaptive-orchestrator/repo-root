@@ -1,13 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { BillingSvcModule } from './billing-svc.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { ConfigService } from '@nestjs/config';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(BillingSvcModule);
+  const configService = app.get(ConfigService);
    
-  // ⭐ THÊM DÒNG NÀY
+  // ⭐ Connect Kafka microservice for events
   console.log('⏳ Starting Kafka microservices...');
-   app.connectMicroservice<MicroserviceOptions>({
+  app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.KAFKA,
     options: {
       client: {
@@ -20,10 +23,27 @@ async function bootstrap() {
       },
     },
   });
+  console.log('✅ Kafka consumer configured');
+
+  // ⭐ Connect gRPC microservice for API Gateway
+  const grpcUrl = configService.get<string>('GRPC_LISTEN_BILLING_URL') || '0.0.0.0:50058';
+  console.log('⏳ Starting gRPC server...');
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'billing',
+      protoPath: join(__dirname, './proto/billing.proto'),
+      url: grpcUrl,
+    },
+  });
+  console.log(`✅ gRPC server configured on ${grpcUrl}`);
+
   await app.startAllMicroservices();
-  console.log('✅ Kafka consumer started! Group: billing-group');
+  console.log('✅ All microservices started!');
   
-  await app.listen(3003); // hoặc port bạn đang dùng
-  console.log('🚀 Billing Service running on port 3003');
+  const httpPort = configService.get<number>('SERVER_PORT') || 3003;
+  await app.listen(httpPort);
+  console.log(`🚀 Billing Service HTTP running on port ${httpPort}`);
+  console.log(`🚀 Billing Service gRPC running on ${grpcUrl}`);
 }
 bootstrap();
