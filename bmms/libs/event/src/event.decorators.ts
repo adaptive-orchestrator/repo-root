@@ -49,6 +49,8 @@ export const EventTopics = {
   INVOICE_CREATED: 'invoice.created',
   INVOICE_UPDATED: 'invoice.updated',
   INVOICE_OVERDUE: 'invoice.overdue',
+  INVOICE_PAID: 'invoice.paid',
+  BILLING_CREDIT_APPLIED: 'billing.credit.applied',
   
   // Inventory events
   INVENTORY_CREATED: 'inventory.created',
@@ -56,4 +58,20 @@ export const EventTopics = {
   INVENTORY_RESERVED: 'inventory.reserved',
   INVENTORY_RELEASED: 'inventory.released',
   INVENTORY_LOW_STOCK: 'inventory.low_stock',
+
+  // Subscription events
+  SUBSCRIPTION_CREATED: 'subscription.created',
+  SUBSCRIPTION_UPDATED: 'subscription.updated',
+  SUBSCRIPTION_RENEWED: 'subscription.renewed',
+  SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+  SUBSCRIPTION_EXPIRED: 'subscription.expired',
+  SUBSCRIPTION_TRIAL_STARTED: 'subscription.trial.started',
+  SUBSCRIPTION_TRIAL_ENDING: 'subscription.trial.ending',
+  SUBSCRIPTION_TRIAL_ENDED: 'subscription.trial.ended',
+  SUBSCRIPTION_PLAN_CHANGED: 'subscription.plan.changed',
+
+  // Promotion events
+  PROMOTION_CREATED: 'promotion.created',
+  PROMOTION_APPLIED: 'promotion.applied',
+  PROMOTION_EXPIRED: 'promotion.expired',
 } as const;

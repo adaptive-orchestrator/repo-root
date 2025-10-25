@@ -4,4 +4,6 @@ export class CreatePlanDto {
   price: number;
   billingCycle: 'monthly' | 'yearly';
   features: number[]; // Feature IDs
+  trialEnabled?: boolean;
+  trialDays?: number;
 }

@@ -460,4 +460,101 @@ export class BillingService {
       outstandingAmount: Number((totalAmount - paidAmount).toFixed(2)),
     };
   }
+
+  // ============= SUBSCRIPTION BILLING =============
+
+  /**
+   * Create recurring invoice for subscription
+   */
+  async createRecurringInvoice(data: {
+    subscriptionId: number;
+    customerId: number;
+    planName: string;
+    amount: number;
+    periodStart: Date;
+    periodEnd: Date;
+    dueDate: Date;
+  }): Promise<Invoice> {
+    console.log('💰 [BillingService.createRecurringInvoice] Creating recurring invoice for subscription', data.subscriptionId);
+
+    // Check if invoice already exists for this billing period
+    const existing = await this.invoiceRepo.findOne({
+      where: {
+        subscriptionId: data.subscriptionId,
+        periodStart: data.periodStart,
+        periodEnd: data.periodEnd,
+      },
+    });
+
+    if (existing) {
+      console.log('⚠️ Invoice already exists for this period:', existing.invoiceNumber);
+      return existing;
+    }
+
+    const invoiceNumber = await this.generateInvoiceNumber();
+
+    const invoice = await this.invoiceRepo.save(
+      this.invoiceRepo.create({
+        invoiceNumber,
+        subscriptionId: data.subscriptionId,
+        customerId: data.customerId,
+        invoiceType: 'recurring',
+        subtotal: data.amount,
+        tax: 0,
+        shippingCost: 0,
+        discount: 0,
+        totalAmount: data.amount,
+        dueAmount: data.amount,
+        dueDate: data.dueDate,
+        periodStart: data.periodStart,
+        periodEnd: data.periodEnd,
+        notes: `Recurring invoice for ${data.planName} (${data.periodStart.toLocaleDateString()} - ${data.periodEnd.toLocaleDateString()})`,
+        status: 'draft',
+      }),
+    );
+
+    // Create invoice item
+    await this.itemRepo.save(
+      this.itemRepo.create({
+        invoiceId: invoice.id,
+        description: `Subscription: ${data.planName}`,
+        quantity: 1,
+        unitPrice: data.amount,
+        totalPrice: data.amount,
+      }),
+    );
+
+    // Save history
+    await this.historyRepo.save(
+      this.historyRepo.create({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        action: 'created',
+        details: `Recurring invoice created for subscription ${data.subscriptionId}`,
+      }),
+    );
+
+    console.log('📤 Emitting INVOICE_CREATED event for subscription invoice...');
+
+    this.kafka.emit(EventTopics.INVOICE_CREATED, {
+      eventId: crypto.randomUUID(),
+      eventType: EventTopics.INVOICE_CREATED,
+      timestamp: new Date(),
+      source: 'billing-svc',
+      data: {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        subscriptionId: data.subscriptionId,
+        customerId: invoice.customerId,
+        totalAmount: invoice.totalAmount,
+        dueDate: invoice.dueDate,
+        status: invoice.status,
+        invoiceType: 'recurring',
+        createdAt: invoice.createdAt,
+      },
+    });
+
+    console.log('✅ Recurring invoice created:', invoice.invoiceNumber);
+    return invoice;
+  }
 }

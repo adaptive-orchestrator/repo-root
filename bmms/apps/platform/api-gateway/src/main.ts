@@ -28,8 +28,14 @@ async function bootstrap() {
       'accessToken',
     )
     .addTag('Authentication', 'Endpoints for user authentication and authorization')
-    .addTag('Comments', 'Endpoints for comments management')
+    .addTag('Customers', 'Endpoints for customer management')
+    .addTag('Catalogue', 'Endpoints for products, plans, and features management')
+    .addTag('Orders', 'Endpoints for order management (Retail model)')
+    .addTag('Subscriptions', 'Endpoints for subscription management (SaaS model)')
+    .addTag('Promotions', 'Endpoints for promotion and discount code management')
     .addTag('Invoices', 'Endpoints for invoice and billing management')
+    .addTag('Payments', 'Endpoints for payment processing')
+    .addTag('Inventory', 'Endpoints for inventory management')
     .build();
     
   const documentFactory = () => SwaggerModule.createDocument(app, config);

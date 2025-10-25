@@ -63,8 +63,10 @@ message Plan {
   double price = 4;
   string billingCycle = 5;
   repeated string features = 6;
-  string createdAt = 7;
-  string updatedAt = 8;
+  bool trialEnabled = 7;
+  int32 trialDays = 8;
+  string createdAt = 9;
+  string updatedAt = 10;
 }
 
 message CreatePlanRequest {
@@ -73,6 +75,8 @@ message CreatePlanRequest {
   double price = 3;
   string billingCycle = 4;
   repeated string features = 5;
+  bool trialEnabled = 6;
+  int32 trialDays = 7;
 }
 
 message PlanByIdRequest {

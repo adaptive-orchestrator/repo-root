@@ -4,4 +4,6 @@ export class UpdatePlanDto {
   price?: number;
   billingCycle?: 'monthly' | 'yearly';
   features?: number[];
+  trialEnabled?: boolean;
+  trialDays?: number;
 }

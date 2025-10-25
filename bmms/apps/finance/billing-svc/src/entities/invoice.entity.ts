@@ -18,11 +18,21 @@ export class Invoice {
   @Column({ unique: true })
   invoiceNumber: string; // INV-2025-10-00001
 
-  @Column()
-  orderId: number;
+  @Column({ nullable: true })
+  orderId?: number;
 
-  @Column()
-  orderNumber: string;
+  @Column({ nullable: true })
+  orderNumber?: string;
+
+  @Column({ nullable: true })
+  subscriptionId?: number;
+
+  @Column({
+    type: 'enum',
+    enum: ['onetime', 'recurring'],
+    default: 'onetime',
+  })
+  invoiceType: 'onetime' | 'recurring';
 
   @Column()
   customerId: number;
@@ -66,6 +76,12 @@ export class Invoice {
 
   @Column({ nullable: true })
   paidAt?: Date;
+
+  @Column({ nullable: true })
+  periodStart?: Date; // For recurring invoices
+
+  @Column({ nullable: true })
+  periodEnd?: Date; // For recurring invoices
 
   @OneToMany(() => InvoiceItem, (item) => item.invoice, { cascade: true })
   items: InvoiceItem[];

@@ -364,6 +364,160 @@ export interface InvoiceOverdueEvent extends BaseEvent {
 }
 
 /**
+ * Subscription Events
+ */
+export interface SubscriptionCreatedEvent extends BaseEvent {
+  eventType: 'subscription.created';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    planName: string;
+    status: 'trial' | 'active' | 'past_due' | 'cancelled' | 'expired';
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    trialEnd?: Date;
+    amount: number;
+    billingCycle: 'monthly' | 'yearly';
+    createdAt: Date;
+  };
+}
+
+export interface SubscriptionUpdatedEvent extends BaseEvent {
+  eventType: 'subscription.updated';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    changes: Record<string, any>;
+    previousStatus?: string;
+    newStatus?: string;
+  };
+}
+
+export interface SubscriptionRenewedEvent extends BaseEvent {
+  eventType: 'subscription.renewed';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    previousPeriodEnd: Date;
+    currentPeriodStart: Date;
+    currentPeriodEnd: Date;
+    amount: number;
+    renewedAt: Date;
+  };
+}
+
+export interface SubscriptionCancelledEvent extends BaseEvent {
+  eventType: 'subscription.cancelled';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    cancelledAt: Date;
+    cancelAtPeriodEnd: boolean;
+    reason?: string;
+  };
+}
+
+export interface SubscriptionExpiredEvent extends BaseEvent {
+  eventType: 'subscription.expired';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    expiredAt: Date;
+    reason: 'trial_ended' | 'payment_failed' | 'cancelled' | 'admin_action';
+  };
+}
+
+export interface SubscriptionTrialStartedEvent extends BaseEvent {
+  eventType: 'subscription.trial.started';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    trialStart: Date;
+    trialEnd: Date;
+    trialDays: number;
+  };
+}
+
+export interface SubscriptionTrialEndingEvent extends BaseEvent {
+  eventType: 'subscription.trial.ending';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    trialEnd: Date;
+    daysRemaining: number;
+  };
+}
+
+export interface SubscriptionTrialEndedEvent extends BaseEvent {
+  eventType: 'subscription.trial.ended';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    planId: number;
+    trialEnd: Date;
+    convertedToActive: boolean;
+  };
+}
+
+export interface SubscriptionPlanChangedEvent extends BaseEvent {
+  eventType: 'subscription.plan.changed';
+  data: {
+    subscriptionId: number;
+    customerId: number;
+    previousPlanId: number;
+    newPlanId: number;
+    previousAmount: number;
+    newAmount: number;
+    changeType: 'upgrade' | 'downgrade';
+    effectiveDate: Date;
+  };
+}
+
+/**
+ * Promotion Events
+ */
+export interface PromotionCreatedEvent extends BaseEvent {
+  eventType: 'promotion.created';
+  data: {
+    promotionId: number;
+    code: string;
+    type: 'percentage' | 'fixed_amount' | 'trial_extension';
+    value: number;
+    startDate: Date;
+    endDate: Date;
+    createdAt: Date;
+  };
+}
+
+export interface PromotionAppliedEvent extends BaseEvent {
+  eventType: 'promotion.applied';
+  data: {
+    promotionId: number;
+    code: string;
+    customerId: number;
+    subscriptionId?: number;
+    invoiceId?: number;
+    discountAmount: number;
+    appliedAt: Date;
+  };
+}
+
+export interface PromotionExpiredEvent extends BaseEvent {
+  eventType: 'promotion.expired';
+  data: {
+    promotionId: number;
+    code: string;
+    expiredAt: Date;
+  };
+}
+
+/**
  * Helper function để tạo base event
  */
 export function createBaseEvent(
