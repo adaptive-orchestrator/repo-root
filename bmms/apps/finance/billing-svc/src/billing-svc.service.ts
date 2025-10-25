@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
 import { ClientKafka } from '@nestjs/microservices';
+import * as crypto from 'crypto';
 
 import { Invoice } from './entities/invoice.entity';
 import { InvoiceItem } from './entities/invoice-item.entity';
@@ -211,6 +212,90 @@ export class BillingService {
     });
 
     return updated;
+  }
+
+  /**
+   * Update invoice status (simple version for internal use)
+   */
+  async updateInvoiceStatus(invoiceId: number, status: 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled'): Promise<void> {
+    try {
+      const invoice = await this.invoiceRepo.findOne({ where: { id: invoiceId } });
+      
+      if (!invoice) {
+        console.error(`❌ Invoice ${invoiceId} not found`);
+        return;
+      }
+
+      const previousStatus = invoice.status;
+      invoice.status = status;
+
+      if (status === 'sent') {
+        invoice.issuedAt = new Date();
+      }
+
+      if (status === 'paid') {
+        invoice.paidAt = new Date();
+        invoice.paidAmount = invoice.totalAmount;
+        invoice.dueAmount = 0;
+      }
+
+      await this.invoiceRepo.save(invoice);
+
+      // Save history
+      await this.historyRepo.save(
+        this.historyRepo.create({
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          action: 'status_changed',
+          details: `Status changed from ${previousStatus} to ${status}`,
+        }),
+      );
+
+      console.log(`✅ Invoice ${invoiceId} status updated: ${previousStatus} → ${status}`);
+
+      // Emit INVOICE_UPDATED event
+      this.kafka.emit(EventTopics.INVOICE_UPDATED, {
+        eventId: crypto.randomUUID(),
+        eventType: EventTopics.INVOICE_UPDATED,
+        timestamp: new Date(),
+        source: 'billing-svc',
+        data: {
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          customerId: invoice.customerId,
+          previousStatus,
+          newStatus: status,
+        },
+      });
+    } catch (error) {
+      console.error(`❌ Error updating invoice ${invoiceId} status:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Emit ORDER_COMPLETED event for inventory to deduct stock
+   */
+  async emitOrderCompleted(orderId: number, invoiceId: number): Promise<void> {
+    try {
+      console.log(`📤 Emitting ORDER_COMPLETED event for order ${orderId}`);
+      
+      this.kafka.emit(EventTopics.ORDER_COMPLETED, {
+        eventId: crypto.randomUUID(),
+        eventType: EventTopics.ORDER_COMPLETED,
+        timestamp: new Date(),
+        source: 'billing-svc',
+        data: {
+          orderId,
+          invoiceId,
+          completedAt: new Date(),
+        },
+      });
+
+      console.log(`✅ ORDER_COMPLETED event emitted`);
+    } catch (error) {
+      console.error(`❌ Error emitting ORDER_COMPLETED event:`, error);
+    }
   }
 
   // ============= PAYMENT MANAGEMENT =============

@@ -80,7 +80,7 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '[TEST] Emit payment.success event for testing flow' })
   async testEmitSuccess(
-    @Param('paymentId') paymentId: string,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
     @Body() data: {
       invoiceId: number;
       orderId?: number;
@@ -107,7 +107,7 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '[TEST] Emit payment.failed event for testing flow' })
   async testEmitFailed(
-    @Param('paymentId') paymentId: string,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
     @Body() data: {
       invoiceId: number;
       orderId?: number;
@@ -137,7 +137,7 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '[TEST] Emit payment.retry event for testing flow' })
   async testEmitRetry(
-    @Param('paymentId') paymentId: string,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
     @Body() data: {
       invoiceId: number;
       orderId?: number;
@@ -164,7 +164,7 @@ export class PaymentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '[TEST] Emit payment.refunded event for testing flow' })
   async testEmitRefunded(
-    @Param('paymentId') paymentId: string,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
     @Body() data: {
       invoiceId: number;
       orderId?: number;

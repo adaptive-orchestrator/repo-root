@@ -14,8 +14,8 @@ export class PaymentHistory {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  paymentId: string; // Changed from number to string to accept UUID
+  @Column({ type: 'bigint', nullable: true })
+  paymentId: number;
 
   @Column({ type: 'bigint' })
   invoiceId: number;

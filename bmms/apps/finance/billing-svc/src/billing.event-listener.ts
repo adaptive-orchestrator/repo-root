@@ -219,12 +219,28 @@ export class BillingEventListener implements OnModuleInit {
   async handlePaymentSuccess(@Payload() event: event.PaymentSuccessEvent) {
     try {
       this.logEvent(event);
-      const { amount } = event.data;
+      const { invoiceId, paymentId, amount, transactionId, customerId, orderId } = event.data;
 
-      // Send payment receipt to customer
-      // await this.notificationService.sendPaymentReceipt(customerId, invoiceNumber, amount);
+      console.log(`💳 Payment successful for invoice ${invoiceId}`);
+      console.log(`   Payment ID: ${paymentId}`);
+      console.log(`   Order ID: ${orderId || 'N/A'}`);
+      console.log(`   Amount: ${amount}`);
+      console.log(`   Transaction ID: ${transactionId}`);
 
-      console.log(`✅ Payment receipt sent for invoice `);
+      // 1. Update invoice status to 'paid'
+      await this.billingService.updateInvoiceStatus(invoiceId, 'paid');
+      console.log(`✅ Invoice ${invoiceId} marked as PAID`);
+
+      // 2. If there's an orderId, emit ORDER_COMPLETED event for inventory to deduct stock
+      if (orderId) {
+        await this.billingService.emitOrderCompleted(orderId, invoiceId);
+        console.log(`✅ ORDER_COMPLETED event emitted for order ${orderId}`);
+      }
+
+      // TODO: Send payment receipt to customer
+      // await this.notificationService.sendPaymentReceipt(customerId, invoiceId, amount, transactionId);
+
+      console.log(`✅ Payment receipt sent for invoice ${invoiceId}`);
     } catch (error) {
       console.error('❌ Error handling PAYMENT_SUCCESS:', error);
     }

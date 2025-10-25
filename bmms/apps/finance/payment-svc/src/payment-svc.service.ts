@@ -134,7 +134,7 @@ export class PaymentService {
   async getById(id: number): Promise<Payment> {
     try {
       const payment = await this.paymentRepository.findOne({
-        where: { id: id.toString() },
+        where: { id },
       });
 
       if (!payment) {
@@ -317,7 +317,7 @@ export class PaymentService {
    * Đánh dấu thanh toán thành công
    */
   async markPaymentSuccess(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     amount: number;
     method?: string;  // Optional
@@ -366,7 +366,7 @@ export class PaymentService {
    * Đánh dấu thanh toán thất bại
    */
   async markPaymentFailed(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     reason: string;
     errorCode?: string;  // Optional
@@ -433,14 +433,14 @@ export class PaymentService {
    * Log payment history
    */
   private async logPaymentHistory(
-    paymentId: string | number,
+    paymentId: number,
     invoiceId: number,
     action: 'initiated' | 'processing' | 'success' | 'failed' | 'refunded',
     details?: string,
   ) {
     try {
       const history = this.paymentHistoryRepository.create({
-        paymentId: typeof paymentId === 'string' ? paymentId : paymentId.toString(),
+        paymentId,
         invoiceId,
         action,
         details,
@@ -496,7 +496,7 @@ export class PaymentService {
    * Create retry payment attempt (stub for future VNPay integration)
    */
   async createRetryPayment(data: {
-    originalPaymentId: string;
+    originalPaymentId: number;
     invoiceId: number;
     orderId: number | null;
     customerId: number | null;
@@ -532,10 +532,12 @@ export class PaymentService {
   }): Promise<void> {
     this.logger.log(`💰 Marking payment ${data.paymentId} as refunded`);
     
+    const paymentId = parseInt(data.paymentId, 10);
+    
     // TODO: Implement refund logic
     // For now, mark as failed (since refunded is not in enum)
     await this.paymentRepository.update(
-      { id: data.paymentId },
+      { id: paymentId },
       { 
         status: 'failed', // Use 'failed' as closest enum value
         failureReason: `REFUNDED: ${data.reason}`,
@@ -544,7 +546,7 @@ export class PaymentService {
     );
 
     await this.logPaymentHistory(
-      data.paymentId,
+      paymentId,
       data.invoiceId,
       'refunded',
       `Refunded ${data.refundAmount} VND. Reason: ${data.reason}`,
@@ -559,7 +561,7 @@ export class PaymentService {
    * Emit payment.success event (for testing flow)
    */
   async emitPaymentSuccess(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number | null;
     customerId: number | null;
@@ -571,17 +573,19 @@ export class PaymentService {
     this.logger.log(`📤 Emitting payment.success event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.success', {
+      eventId: crypto.randomUUID(),
+      eventType: 'payment.success',
+      timestamp: new Date(),
+      source: 'payment-svc',
       data: {
         paymentId: data.paymentId,
         invoiceId: data.invoiceId,
         orderId: data.orderId,
         customerId: data.customerId,
         amount: data.amount,
-        currency: 'VND',
         method: data.method,
         transactionId: data.transactionId,
         paidAt: data.paidAt || new Date(),
-        timestamp: new Date(),
       },
     });
 
@@ -592,7 +596,7 @@ export class PaymentService {
    * Emit payment.failed event (for testing flow)
    */
   async emitPaymentFailed(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number | null;
     customerId: number | null;
@@ -605,18 +609,20 @@ export class PaymentService {
     this.logger.log(`📤 Emitting payment.failed event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.failed', {
+      eventId: crypto.randomUUID(),
+      eventType: 'payment.failed',
+      timestamp: new Date(),
+      source: 'payment-svc',
       data: {
         paymentId: data.paymentId,
         invoiceId: data.invoiceId,
         orderId: data.orderId,
         customerId: data.customerId,
         amount: data.amount,
-        currency: 'VND',
         method: data.method,
         reason: data.reason,
         errorCode: data.errorCode || 'UNKNOWN',
         canRetry: data.canRetry !== undefined ? data.canRetry : true,
-        timestamp: new Date(),
       },
     });
 
@@ -627,7 +633,7 @@ export class PaymentService {
    * Emit payment.retry event (for testing flow)
    */
   async emitPaymentRetry(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number | null;
     customerId: number | null;
@@ -638,16 +644,18 @@ export class PaymentService {
     this.logger.log(`📤 Emitting payment.retry event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.retry', {
+      eventId: crypto.randomUUID(),
+      eventType: 'payment.retry',
+      timestamp: new Date(),
+      source: 'payment-svc',
       data: {
         paymentId: data.paymentId,
         invoiceId: data.invoiceId,
         orderId: data.orderId,
         customerId: data.customerId,
         amount: data.amount,
-        currency: 'VND',
         retryCount: data.retryCount,
         previousFailureReason: data.previousFailureReason,
-        timestamp: new Date(),
       },
     });
 
@@ -658,7 +666,7 @@ export class PaymentService {
    * Emit payment.initiated event (called from event listener)
    */
   async emitPaymentInitiated(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number | null;
     customerId: number | null;
@@ -670,16 +678,20 @@ export class PaymentService {
     this.logger.log(`📤 Emitting payment.initiated event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.initiated', {
+      eventId: crypto.randomUUID(),
+      eventType: 'payment.initiated',
+      timestamp: new Date(),
+      source: 'payment-svc',
       data: {
         paymentId: data.paymentId,
         invoiceId: data.invoiceId,
+        invoiceNumber: `INV-${data.invoiceId}`,
         orderId: data.orderId,
         customerId: data.customerId,
         amount: data.amount,
         currency: data.currency,
         method: data.method,
         paymentUrl: data.paymentUrl || `http://localhost:3000/payments/${data.paymentId}`,
-        timestamp: new Date(),
       },
     });
 
@@ -690,7 +702,7 @@ export class PaymentService {
    * Emit payment.refunded event (for testing flow)
    */
   async emitPaymentRefunded(data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number | null;
     customerId: number | null;
@@ -701,17 +713,18 @@ export class PaymentService {
     this.logger.log(`📤 Emitting payment.refunded event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.refunded', {
+      eventId: crypto.randomUUID(),
+      eventType: 'payment.refunded',
+      timestamp: new Date(),
+      source: 'payment-svc',
       data: {
         paymentId: data.paymentId,
         invoiceId: data.invoiceId,
         orderId: data.orderId,
         customerId: data.customerId,
         refundAmount: data.refundAmount,
-        originalAmount: data.refundAmount,
-        currency: 'VND',
         reason: data.reason,
         refundedAt: data.refundedAt || new Date(),
-        timestamp: new Date(),
       },
     });
 
@@ -719,4 +732,3 @@ export class PaymentService {
   }
 
 }
-

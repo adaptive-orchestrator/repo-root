@@ -51,8 +51,16 @@ export class PaymentEventListener {
         return;
       }
 
-      // 1. Register invoice in payment system
-      await this.paymentService.registerInvoice({
+      // Check if payment already exists for this invoice (avoid duplicates)
+      const existingPayment = await this.paymentService.getByInvoice(invoiceId);
+      if (existingPayment && existingPayment.length > 0) {
+        this.logger.warn(`⚠️ Payment already exists for invoice ${invoiceNumber}, skipping...`);
+        await this.commitOffset(context);
+        return;
+      }
+
+      // 1. Register invoice in payment system (this creates the payment record)
+      const payment = await this.paymentService.registerInvoice({
         invoiceId,
         invoiceNumber,
         orderId: orderId || null,
@@ -62,21 +70,7 @@ export class PaymentEventListener {
       });
 
       this.logger.log(`✅ Invoice ${invoiceNumber} registered in payment system`);
-
-      // 2. Create pending payment record
-      // NOTE: Using stub method - VNPay integration deferred
-      const payment = await this.paymentService.createPendingPayment({
-        invoiceId,
-        invoiceNumber,
-        orderId: orderId || null,
-        customerId,
-        amount: totalAmount,
-        currency: 'VND',
-        method: 'vnpay', // Default to VNPay
-        status: 'pending',
-      });
-
-      this.logger.log(`✅ Pending payment created: ${payment.id}`);
+      this.logger.log(`✅ Payment created with ID: ${payment.id}`);
 
       // 3. TODO: Generate VNPay payment URL (commented for now)
       // const vnpayUrl = await this.vnpayService.createPaymentUrl({
@@ -166,16 +160,15 @@ export class PaymentEventListener {
 
       this.logger.log(`✅ Payment ${paymentId} marked as successful`);
 
-      // 2. Update invoice status to 'paid'
-      await this.paymentService.updateInvoiceStatus(invoiceId, 'paid');
-      this.logger.log(`✅ Invoice ${invoiceId} marked as paid`);
+      // Note: Invoice status will be updated by billing-svc when it receives this event
+      // No need to update invoice directly from payment-svc
 
-      // 3. TODO: Notify Order Service (update order.paymentStatus)
+      // 2. TODO: Notify Order Service (update order.paymentStatus)
       // if (orderId) {
       //   await this.orderService.updatePaymentStatus(orderId, 'paid');
       // }
 
-      // 4. TODO: Send payment confirmation to customer
+      // 3. TODO: Send payment confirmation to customer
       // await this.notificationService.sendPaymentConfirmation({
       //   customerId,
       //   invoiceId,

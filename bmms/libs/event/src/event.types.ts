@@ -252,13 +252,11 @@ export interface OrderCancelledEvent extends BaseEvent {
 /**
  * Payment Events
  */
-/**
- * Payment Events
- */
+
 export interface PaymentInitiatedEvent extends BaseEvent {
   eventType: 'payment.initiated';
   data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     invoiceNumber: string;
     orderId: number;
@@ -273,8 +271,8 @@ export interface PaymentInitiatedEvent extends BaseEvent {
 export interface PaymentSuccessEvent extends BaseEvent {
   eventType: 'payment.success';
   data: {
-    paymentId: string;
-    invoiceId: string;
+    paymentId: number;
+    invoiceId: number;
     orderId: number;
     customerId: number;
     amount: number;
@@ -287,8 +285,8 @@ export interface PaymentSuccessEvent extends BaseEvent {
 export interface PaymentFailedEvent extends BaseEvent {
   eventType: 'payment.failed';
   data: {
-    paymentId: string;
-    invoiceId: string;
+    paymentId: number;
+    invoiceId: number;
     orderId: number;
     customerId: number;
     amount: number;
@@ -302,7 +300,7 @@ export interface PaymentFailedEvent extends BaseEvent {
 export interface PaymentRetryEvent extends BaseEvent {
   eventType: 'payment.retry';
   data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number;
     customerId: number;
@@ -315,7 +313,7 @@ export interface PaymentRetryEvent extends BaseEvent {
 export interface PaymentRefundedEvent extends BaseEvent {
   eventType: 'payment.refunded';
   data: {
-    paymentId: string;
+    paymentId: number;
     invoiceId: number;
     orderId: number;
     customerId: number;

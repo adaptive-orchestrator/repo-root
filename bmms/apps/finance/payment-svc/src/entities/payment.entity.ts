@@ -13,8 +13,8 @@ import {
 @Index(['status'])
 @Index(['createdAt'])
 export class Payment {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ type: 'bigint', nullable: false })
   invoiceId: number;
