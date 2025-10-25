@@ -175,7 +175,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/order/order-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/order/order-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/order/order-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/order/order-svc/src"
+          }
+        ]
       }
     },
     "payment-svc": {

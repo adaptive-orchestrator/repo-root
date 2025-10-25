@@ -2,13 +2,10 @@ import { Controller } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import * as event from '@bmms/event';
 import { OrderSvcService } from './order-svc.service';
-import { CustomerSvcService } from 'apps/customer/customer-svc/src/customer-svc.service';
-
 
 @Controller()
 export class OrderEventListener {
   constructor(
-    private readonly customerSvcService: CustomerSvcService,
     private readonly orderSvcService: OrderSvcService,
   ) {}
 
@@ -18,12 +15,11 @@ export class OrderEventListener {
   async handleCustomerCreated(@Payload() event: any) {
     try {
       this.logEvent(event);
-         console.log('📨 RAW EVENT RECEIVED:', JSON.stringify(event, null, 2));
+      console.log('📨 RAW EVENT RECEIVED:', JSON.stringify(event, null, 2));
 
       // TODO: Implement business logic
       // e.g., create welcome voucher, send welcome email
-      // await this.customerService.createWelcomeVoucher(event.data.customerId);
-      // await this.customerService.sendWelcomeEmail(event.data.email);
+      // If needed, use gRPC client to call Customer Service
 
     } catch (error) {
       console.error('Error handling CUSTOMER_CREATED event:', error);
