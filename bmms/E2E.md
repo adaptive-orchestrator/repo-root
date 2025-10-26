@@ -41,7 +41,7 @@ Order-svc
 1. Customer tạo order
    └─> Order-svc emit ORDER_CREATED
 
-2. Inventory-svc nhận ORDER_CREATED
+2. Inventory-svc nhận ORDER_CREATED ✅
    └─> RESERVE stock (quantityReserved++)
    └─> Emit INVENTORY_RESERVED (cho mỗi item)
 
@@ -86,7 +86,7 @@ Order-svc
 ### Flow 1: Customer đăng ký subscription (với trial)
 
 ```
-1. Customer chọn plan và đăng ký
+1. Customer chọn plan và đăng ký✅
    POST /api/v1/subscriptions
    {
      "customerId": 1,
@@ -101,16 +101,18 @@ Order-svc
         └─> Emit SUBSCRIPTION_CREATED
         └─> Emit SUBSCRIPTION_TRIAL_STARTED
 
-2. Billing-svc lắng nghe SUBSCRIPTION_CREATED
+2. Billing-svc lắng nghe SUBSCRIPTION_CREATED✅
    └─> Check subscription status
    └─> If status = 'trial': Skip invoice creation (trial miễn phí)
    └─> If status = 'active': Create first recurring invoice
    └─> Emit INVOICE_CREATED (nếu không phải trial)
 
-3. Payment-svc lắng nghe INVOICE_CREATED
-   └─> Create payment record
-   └─> Emit PAYMENT_INITIATED
+3. Payment-svc lắng nghe INVOICE_CREATED✅
+   └─> Create payment record         oke✅
+   └─> Emit PAYMENT_INITIATED ✅
    └─> Return payment URL to customer
+   └─> Generate VNPay payment URL ❌ (chưa có)
+   └─> Return URL to customer ❌ (chưa có)
 
 4. (Sau X ngày trial) Scheduler kiểm tra trial ending
    └─> Subscription-svc emit SUBSCRIPTION_TRIAL_ENDING (3 days before)
@@ -128,11 +130,11 @@ Order-svc
         └─> If payment succeeds: emit PAYMENT_SUCCESS
         └─> If payment fails: emit PAYMENT_FAILED
 
-6. Billing-svc lắng nghe PAYMENT_SUCCESS
+6. Billing-svc lắng nghe PAYMENT_SUCCESS✅
    └─> Update invoice status → 'paid'
    └─> Subscription continues (active)
 
-7. Subscription-svc lắng nghe PAYMENT_FAILED
+7. Subscription-svc lắng nghe PAYMENT_FAILED✅
    └─> Update subscription status → 'past_due'
    └─> Send notification to customer
    └─> Retry payment after X days
@@ -141,7 +143,7 @@ Order-svc
 ### Flow 2: Customer đăng ký subscription (không có trial)
 
 ```
-1. Customer chọn plan và đăng ký
+1. Customer chọn plan và đăng ký✅
    POST /api/v1/subscriptions
    {
      "customerId": 1,
@@ -153,7 +155,7 @@ Order-svc
         └─> Create subscription (status: 'active')
         └─> Emit SUBSCRIPTION_CREATED
 
-2. Billing-svc lắng nghe SUBSCRIPTION_CREATED
+2. Billing-svc lắng nghe SUBSCRIPTION_CREATED✅
    └─> Create first recurring invoice
         {
           "subscriptionId": 5,
@@ -165,12 +167,12 @@ Order-svc
         }
    └─> Emit INVOICE_CREATED
 
-3. Payment-svc lắng nghe INVOICE_CREATED
+3. Payment-svc lắng nghe INVOICE_CREATED✅
    └─> Create payment record
    └─> Emit PAYMENT_INITIATED
-   └─> Process payment
+   └─> Process payment ✅
 
-4. Customer trả tiền
+4. Customer trả tiền✅
    └─> Payment-svc emit PAYMENT_SUCCESS
    └─> Billing-svc update invoice status → 'paid'
    └─> Subscription active ✅
@@ -282,25 +284,25 @@ Order-svc
 ### Events:
 
 **Subscription Events:**
-- `subscription.created` - Subscription được tạo
+- `subscription.created` - Subscription được tạo ✅
 - `subscription.renewed` - Subscription được gia hạn
 - `subscription.cancelled` - Subscription bị hủy
 - `subscription.expired` - Subscription hết hạn
-- `subscription.trial.started` - Trial period bắt đầu
+- `subscription.trial.started` - Trial period bắt đầu✅
 - `subscription.trial.ending` - Trial sắp kết thúc (3 days warning)
 - `subscription.trial.ended` - Trial period kết thúc
 - `subscription.plan.changed` - Đổi plan
 - `subscription.updated` - Subscription được cập nhật
 
 **Invoice Events:**
-- `invoice.created` - Invoice được tạo (onetime hoặc recurring)
-- `invoice.updated` - Invoice được cập nhật
+- `invoice.created` - Invoice được tạo (onetime hoặc recurring) ✅
+- `invoice.updated` - Invoice được cập nhật ✅
 - `invoice.overdue` - Invoice quá hạn
 
 **Payment Events:**
-- `payment.initiated` - Payment được khởi tạo
-- `payment.success` - Payment thành công
-- `payment.failed` - Payment thất bại
+- `payment.initiated` - Payment được khởi tạo ✅
+- `payment.success` - Payment thành công✅
+- `payment.failed` - Payment thất bại✅
 - `payment.retry` - Retry payment
 - `payment.refunded` - Payment được hoàn tiền
 

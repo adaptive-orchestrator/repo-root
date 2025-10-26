@@ -164,4 +164,48 @@ export class SubscriptionController {
   ) {
     return this.subscriptionService.changePlan(id, dto);
   }
+
+  @Get()
+  @ApiOperation({ 
+    summary: 'Get all subscriptions (admin)',
+    description: 'Retrieve all subscriptions in the system for testing/admin purposes'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'All subscriptions retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        subscriptions: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/SubscriptionResponseDto' }
+        }
+      }
+    }
+  })
+  async getAllSubscriptions() {
+    return this.subscriptionService.getAllSubscriptions();
+  }
+
+  @Post('check-trial-expiry')
+  @ApiOperation({ 
+    summary: 'Manually trigger trial expiry check (testing)',
+    description: 'Manually check and process all trial subscriptions that have expired. Used for testing before implementing scheduler.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Trial expiry check completed',
+    schema: {
+      type: 'object',
+      properties: {
+        processed: { type: 'number', example: 5 },
+        converted: { type: 'number', example: 4 },
+        failed: { type: 'number', example: 1 },
+        message: { type: 'string', example: 'Processed 5 subscriptions. Converted: 4, Failed: 1' }
+      }
+    }
+  })
+  async checkTrialExpiry() {
+    return this.subscriptionService.checkTrialExpiry();
+  }
 }

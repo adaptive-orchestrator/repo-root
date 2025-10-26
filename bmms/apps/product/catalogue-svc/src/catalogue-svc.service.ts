@@ -1,7 +1,7 @@
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Inject } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 
@@ -70,31 +70,61 @@ export class CatalogueSvcService {
   // ============= PLANS =============
 
   async createPlan(dto: CreatePlanDto): Promise<Plan> {
-    const features = await this.featureRepo.findByIds(dto.features);
-    if (features.length !== dto.features.length) {
-      throw new BadRequestException('Some features not found');
+    // Handle features (optional, can be empty array)
+    // Note: gRPC sends 'featureIds', but DTO might have 'features'
+    const featureIds = (dto as any).featureIds || dto.features || [];
+    
+    let features: Feature[] = [];
+    if (featureIds.length > 0) {
+      features = await this.featureRepo.findBy({
+        id: In(featureIds)
+      });
+      if (features.length !== featureIds.length) {
+        throw new BadRequestException('Some features not found');
+      }
     }
 
+    // Create plan without features first
     const plan = this.planRepo.create({
       name: dto.name,
       description: dto.description,
       price: dto.price,
       billingCycle: dto.billingCycle,
-      features,
+      trialEnabled: dto.trialEnabled ?? false,
+      trialDays: dto.trialDays ?? 0,
     });
 
     const savedPlan = await this.planRepo.save(plan);
 
-    this.kafka.emit('plan.created', {
-      id: savedPlan.id,
-      name: savedPlan.name,
-      price: savedPlan.price,
-      billingCycle: savedPlan.billingCycle,
-      featureIds: savedPlan.features.map(f => f.id),
-      createdAt: savedPlan.createdAt,
+    // Manually add features to the plan using query builder
+    if (features.length > 0) {
+      await this.planRepo
+        .createQueryBuilder()
+        .relation(Plan, 'features')
+        .of(savedPlan.id)
+        .add(features.map(f => f.id));
+    }
+
+    // Reload plan with features to ensure they're properly loaded
+    const planWithFeatures = await this.planRepo.findOne({
+      where: { id: savedPlan.id },
+      relations: ['features'],
     });
 
-    return savedPlan;
+    if (!planWithFeatures) {
+      throw new NotFoundException('Plan not found after creation');
+    }
+
+    this.kafka.emit('plan.created', {
+      id: planWithFeatures.id,
+      name: planWithFeatures.name,
+      price: planWithFeatures.price,
+      billingCycle: planWithFeatures.billingCycle,
+      featureIds: planWithFeatures.features.map(f => f.id),
+      createdAt: planWithFeatures.createdAt,
+    });
+
+    return planWithFeatures;
   }
 
   async listPlans(): Promise<Plan[]> {

@@ -7,10 +7,14 @@ service SubscriptionService {
   rpc CreateSubscription (CreateSubscriptionRequest) returns (SubscriptionResponse);
   rpc GetSubscriptionById (SubscriptionByIdRequest) returns (SubscriptionResponse);
   rpc GetSubscriptionsByCustomer (SubscriptionsByCustomerRequest) returns (SubscriptionListResponse);
+  rpc GetAllSubscriptions (Empty) returns (SubscriptionListResponse);
   rpc CancelSubscription (CancelSubscriptionRequest) returns (SubscriptionResponse);
   rpc RenewSubscription (RenewSubscriptionRequest) returns (SubscriptionResponse);
   rpc ChangePlan (ChangePlanRequest) returns (SubscriptionResponse);
   rpc UpdateSubscriptionStatus (UpdateStatusRequest) returns (SubscriptionResponse);
+  
+  // Trial management
+  rpc CheckTrialExpiry (Empty) returns (TrialExpiryResponse);
 }
 
 // Common messages
@@ -81,4 +85,12 @@ message SubscriptionResponse {
 
 message SubscriptionListResponse {
   repeated Subscription subscriptions = 1;
+  string message = 2;
+}
+
+message TrialExpiryResponse {
+  int32 processed = 1;
+  int32 converted = 2;
+  int32 failed = 3;
+  string message = 4;
 }

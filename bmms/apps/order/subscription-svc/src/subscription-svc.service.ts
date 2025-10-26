@@ -219,6 +219,91 @@ export class subscriptionSvcService implements OnModuleInit {
   }
 
   /**
+   * Get all subscriptions (for admin/testing)
+   */
+  async findAll(): Promise<Subscription[]> {
+    return this.subscriptionRepo.find({
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Check and process trial subscriptions that have expired
+   * Called by scheduler or manual trigger
+   */
+  async checkAndProcessTrialExpiry(): Promise<{
+    processed: number;
+    converted: number;
+    failed: number;
+  }> {
+    console.log('🔍 [SubscriptionSvc] Checking for expired trial subscriptions...');
+
+    const now = new Date();
+    const expiredTrials = await this.subscriptionRepo.find({
+      where: {
+        status: SubscriptionStatus.TRIAL,
+        trialEnd: LessThanOrEqual(now),
+      },
+    });
+
+    console.log(`📋 Found ${expiredTrials.length} expired trial subscriptions`);
+
+    let converted = 0;
+    let failed = 0;
+
+    for (const subscription of expiredTrials) {
+      try {
+        console.log(`🔄 Processing subscription ${subscription.id} (trial ended: ${subscription.trialEnd})`);
+
+        // Update status to active
+        subscription.status = SubscriptionStatus.ACTIVE;
+        await this.subscriptionRepo.save(subscription);
+
+        // Log history
+        await this.historyRepo.save(
+          this.historyRepo.create({
+            subscriptionId: subscription.id,
+            action: 'status_changed',
+            previousStatus: SubscriptionStatus.TRIAL,
+            newStatus: SubscriptionStatus.ACTIVE,
+            details: `Trial period ended, converted to active`,
+            metadata: { trialEnd: subscription.trialEnd },
+          })
+        );
+
+        // Emit event for billing service to create first invoice
+        const baseEvent = createBaseEvent(EventTopics.SUBSCRIPTION_TRIAL_ENDED, 'subscription-svc');
+        this.kafka.emit(EventTopics.SUBSCRIPTION_TRIAL_ENDED, {
+          ...baseEvent,
+          subscriptionId: subscription.id,
+          customerId: subscription.customerId,
+          planId: subscription.planId,
+          planName: subscription.planName,
+          amount: subscription.amount,
+          billingCycle: subscription.billingCycle,
+          convertedToActive: true,
+          currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
+          currentPeriodEnd: subscription.currentPeriodEnd?.toISOString(),
+        });
+        console.log(`✅ Subscription ${subscription.id} converted to active`);
+
+        converted++;
+      } catch (error) {
+        console.error(`❌ Failed to process subscription ${subscription.id}:`, error);
+        failed++;
+      }
+    }
+
+    console.log(`✅ Trial expiry check complete. Converted: ${converted}, Failed: ${failed}`);
+
+    return {
+      processed: expiredTrials.length,
+      converted,
+      failed,
+    };
+  }
+
+  /**
    * Cancel a subscription
    */
   async cancel(id: number, dto: CancelSubscriptionDto): Promise<Subscription> {

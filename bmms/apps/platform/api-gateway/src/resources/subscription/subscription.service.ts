@@ -9,10 +9,12 @@ interface ISubscriptionGrpcService {
   createSubscription(data: any): any;
   getSubscriptionById(data: any): any;
   getSubscriptionsByCustomer(data: any): any;
+  getAllSubscriptions(data: any): any;
   cancelSubscription(data: any): any;
   renewSubscription(data: any): any;
   changePlan(data: any): any;
   updateSubscriptionStatus(data: any): any;
+  checkTrialExpiry(data: any): any;
 }
 
 @Injectable()
@@ -120,6 +122,31 @@ export class SubscriptionService implements OnModuleInit {
       );
     } catch (error) {
       console.error('❌ [API Gateway] Error updating subscription status:', error);
+      throw error;
+    }
+  }
+
+  async getAllSubscriptions() {
+    try {
+      return await firstValueFrom(
+        this.subscriptionService.getAllSubscriptions({})
+      );
+    } catch (error) {
+      console.error('❌ [API Gateway] Error getting all subscriptions:', error);
+      throw error;
+    }
+  }
+
+  async checkTrialExpiry() {
+    try {
+      console.log('🔍 [API Gateway] Manually triggering trial expiry check...');
+      const result = await firstValueFrom(
+        this.subscriptionService.checkTrialExpiry({})
+      );
+      console.log('✅ [API Gateway] Trial expiry check completed');
+      return result;
+    } catch (error) {
+      console.error('❌ [API Gateway] Error checking trial expiry:', error);
       throw error;
     }
   }

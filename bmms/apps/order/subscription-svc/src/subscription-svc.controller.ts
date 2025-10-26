@@ -260,4 +260,55 @@ export class subscriptionSvcController {
       throw error;
     }
   }
+
+  @GrpcMethod('SubscriptionService', 'GetAllSubscriptions')
+  async getAllSubscriptions() {
+    try {
+      const subscriptions = await this.subscriptionSvcService.findAll();
+
+      return {
+        subscriptions: subscriptions.map((sub) => ({
+          id: sub.id,
+          customerId: sub.customerId,
+          planId: sub.planId,
+          planName: sub.planName,
+          amount: sub.amount,
+          billingCycle: sub.billingCycle,
+          status: sub.status,
+          currentPeriodStart: sub.currentPeriodStart?.toISOString(),
+          currentPeriodEnd: sub.currentPeriodEnd?.toISOString(),
+          isTrialUsed: sub.isTrialUsed,
+          trialStart: sub.trialStart?.toISOString() || '',
+          trialEnd: sub.trialEnd?.toISOString() || '',
+          cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+          cancelledAt: sub.cancelledAt?.toISOString() || '',
+          cancellationReason: sub.cancellationReason || '',
+          createdAt: sub.createdAt?.toISOString(),
+          updatedAt: sub.updatedAt?.toISOString(),
+        })),
+        message: 'All subscriptions retrieved',
+      };
+    } catch (error) {
+      console.error('❌ [gRPC GetAllSubscriptions] Error:', error);
+      throw error;
+    }
+  }
+
+  @GrpcMethod('SubscriptionService', 'CheckTrialExpiry')
+  async checkTrialExpiry() {
+    try {
+      console.log('🔍 [SubscriptionController] Manual trigger: Checking trial expiry...');
+      const result = await this.subscriptionSvcService.checkAndProcessTrialExpiry();
+      
+      return {
+        processed: result.processed,
+        converted: result.converted,
+        failed: result.failed,
+        message: `Processed ${result.processed} subscriptions. Converted: ${result.converted}, Failed: ${result.failed}`,
+      };
+    } catch (error) {
+      console.error('❌ [gRPC CheckTrialExpiry] Error:', error);
+      throw error;
+    }
+  }
 }

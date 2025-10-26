@@ -71,7 +71,7 @@ export class Subscription {
   cancellationReason?: string;
 
   // Metadata
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: 'json', nullable: true })
   metadata?: Record<string, any>;
 
   @OneToMany(() => SubscriptionHistory, (history) => history.subscription, {

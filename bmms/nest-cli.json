@@ -247,7 +247,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/order/subscription-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/order/subscription-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/order/subscription-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/order/subscription-svc/src"
+          }
+        ] 
       }
     }
   }

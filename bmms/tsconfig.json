@@ -48,5 +48,12 @@
         "libs/event/src/*"
       ]
     }
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "apps/platform/code-indexer/**/*",
+    "apps/platform/llm-orchestrator/**/*",
+    "apps/platform/rl-scheduler/**/*"
+  ]
 }

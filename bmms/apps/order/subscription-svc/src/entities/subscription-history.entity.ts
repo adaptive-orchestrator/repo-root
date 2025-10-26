@@ -34,7 +34,7 @@ export class SubscriptionHistory {
   @Column({ type: 'text', nullable: true })
   details?: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: 'json', nullable: true })
   metadata?: Record<string, any>;
 
   @ManyToOne(() => Subscription, (subscription) => subscription.history)
