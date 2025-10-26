@@ -3,5 +3,7 @@ export class CreatePlanDto {
   description: string;
   price: number;
   billingCycle: 'monthly' | 'yearly';
-  features: number[]; // Feature IDs
+  features?: number[]; // Feature IDs (optional)
+  trialEnabled?: boolean;
+  trialDays?: number;
 }

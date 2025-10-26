@@ -73,8 +73,15 @@ export class CatalogueService implements OnModuleInit {
   // Plans
   async createPlan(data: any) {
     try {
+      // Map 'features' to 'featureIds' for gRPC
+      const grpcData = {
+        ...data,
+        featureIds: data.features || [],
+      };
+      delete grpcData.features;
+
       return await firstValueFrom(
-        this.catalogueGrpcService.createPlan(data).pipe(
+        this.catalogueGrpcService.createPlan(grpcData).pipe(
           catchError(error => {
             throw new HttpException(error.details || 'Failed to create plan', HttpStatus.INTERNAL_SERVER_ERROR);
           }),

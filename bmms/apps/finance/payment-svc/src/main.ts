@@ -48,7 +48,7 @@ async function bootstrap() {
   console.log('✅ All microservices started!');
 
   // HTTP server for VNPay callback and testing
-  const httpPort = configService.get<number>('SERVER_PORT') || 3013;
+  const httpPort = configService.get<number>('PAYMENT_SVC_HTTP_PORT') || 3013;
   
   // Setup Swagger for HTTP endpoints
   const config = new DocumentBuilder()

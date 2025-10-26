@@ -15,7 +15,7 @@ export class InvoiceItem {
   @Column()
   invoiceId: number;
 
-  @Column()
+  @Column({ nullable: true })
   productId: number;
 
   @Column()

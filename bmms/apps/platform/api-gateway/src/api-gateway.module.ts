@@ -10,6 +10,8 @@ import { CustomerModule } from './resources/customer/customer.module';
 import { OrderModule } from './resources/order/order.module';
 import { BillingModule } from './resources/billing/billing.module';
 import { PaymentModule } from './resources/payment/payment.module';
+import { SubscriptionModule } from './resources/subscription/subscription.module';
+import { PromotionModule } from './resources/promotion/promotion.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { PaymentModule } from './resources/payment/payment.module';
     OrderModule,
     BillingModule,
     PaymentModule,
+    SubscriptionModule,
+    PromotionModule,
   ],
   controllers: [
     ApiGatewayController,

@@ -276,6 +276,117 @@ export class BillingEventListener implements OnModuleInit {
     }
   }
 
+  /** -------- Subscription Events -------- */
+  
+  @EventPattern(event.EventTopics.SUBSCRIPTION_CREATED)
+  async handleSubscriptionCreated(@Payload() event: event.SubscriptionCreatedEvent) {
+    try {
+      console.log('📥 [billing-group] Received SUBSCRIPTION_CREATED event');
+      this.logEvent(event);
+
+      const { 
+        subscriptionId, 
+        customerId, 
+        planName, 
+        amount, 
+        currentPeriodStart, 
+        currentPeriodEnd,
+        status 
+      } = event.data;
+
+      console.log(`📋 Subscription Details:`);
+      console.log(`   Subscription ID: ${subscriptionId}`);
+      console.log(`   Customer ID: ${customerId}`);
+      console.log(`   Plan: ${planName}`);
+      console.log(`   Amount: ${amount}`);
+      console.log(`   Status: ${status}`);
+
+      // Only create invoice if not on trial
+      if (status !== 'trial') {
+        // Calculate due date (typically 7 days from period start)
+        const dueDate = new Date(currentPeriodStart);
+        dueDate.setDate(dueDate.getDate() + 7);
+
+        await this.billingService.createRecurringInvoice({
+          subscriptionId,
+          customerId,
+          planName,
+          amount,
+          periodStart: new Date(currentPeriodStart),
+          periodEnd: new Date(currentPeriodEnd),
+          dueDate,
+        });
+
+        console.log(`✅ Recurring invoice created for subscription ${subscriptionId}`);
+      } else {
+        console.log(`ℹ️ Subscription ${subscriptionId} is on trial, invoice will be created after trial`);
+      }
+    } catch (error) {
+      console.error('❌ Error handling SUBSCRIPTION_CREATED:', error);
+    }
+  }
+
+  @EventPattern(event.EventTopics.SUBSCRIPTION_RENEWED)
+  async handleSubscriptionRenewed(@Payload() event: event.SubscriptionRenewedEvent) {
+    try {
+      console.log('📥 [billing-group] Received SUBSCRIPTION_RENEWED event');
+      this.logEvent(event);
+
+      const { 
+        subscriptionId, 
+        customerId, 
+        planId, 
+        currentPeriodStart, 
+        currentPeriodEnd, 
+        amount 
+      } = event.data;
+
+      console.log(`🔄 Subscription ${subscriptionId} renewed`);
+
+      // Get plan name (you might want to call catalogue service here)
+      const planName = `Plan #${planId}`;
+
+      // Calculate due date
+      const dueDate = new Date(currentPeriodStart);
+      dueDate.setDate(dueDate.getDate() + 7);
+
+      await this.billingService.createRecurringInvoice({
+        subscriptionId,
+        customerId,
+        planName,
+        amount,
+        periodStart: new Date(currentPeriodStart),
+        periodEnd: new Date(currentPeriodEnd),
+        dueDate,
+      });
+
+      console.log(`✅ Renewal invoice created for subscription ${subscriptionId}`);
+    } catch (error) {
+      console.error('❌ Error handling SUBSCRIPTION_RENEWED:', error);
+    }
+  }
+
+  @EventPattern(event.EventTopics.SUBSCRIPTION_TRIAL_ENDED)
+  async handleSubscriptionTrialEnded(@Payload() event: event.SubscriptionTrialEndedEvent) {
+    try {
+      console.log('📥 [billing-group] Received SUBSCRIPTION_TRIAL_ENDED event');
+      this.logEvent(event);
+
+      const { subscriptionId, customerId, planId, convertedToActive } = event.data;
+
+      if (convertedToActive) {
+        console.log(`🎁 Trial ended for subscription ${subscriptionId}, creating first invoice`);
+        
+        // TODO: Fetch subscription details to create invoice
+        // You might want to call subscription service here to get current period details
+        
+        console.log(`✅ First invoice will be created for subscription ${subscriptionId}`);
+      }
+    } catch (error) {
+      console.error('❌ Error handling SUBSCRIPTION_TRIAL_ENDED:', error);
+    }
+  }
+
   /** -------- Helper Methods -------- */
   private logEvent<T extends { eventType: string; timestamp: Date | string }>(event: T) {
     const timestamp = typeof event.timestamp === 'string'

@@ -65,6 +65,12 @@ export class Plan {
   @Column()
   billingCycle: 'monthly' | 'yearly';
 
+  @Column({ default: false })
+  trialEnabled: boolean;
+
+  @Column({ default: 0 })
+  trialDays: number;
+
   @ManyToMany(() => Feature)
   @JoinTable({
     name: 'plan_features',

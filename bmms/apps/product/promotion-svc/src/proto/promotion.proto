@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package promotion;
+
+service PromotionService {
+  rpc CreatePromotion(CreatePromotionRequest) returns (PromotionResponse);
+  rpc GetPromotionById(GetPromotionByIdRequest) returns (PromotionResponse);
+  rpc GetPromotionByCode(GetPromotionByCodeRequest) returns (PromotionResponse);
+  rpc GetAllPromotions(GetAllPromotionsRequest) returns (PromotionListResponse);
+  rpc UpdatePromotion(UpdatePromotionRequest) returns (PromotionResponse);
+  rpc DeletePromotion(DeletePromotionRequest) returns (DeletePromotionResponse);
+  rpc ValidatePromotion(ValidatePromotionRequest) returns (ValidationResponse);
+  rpc ApplyPromotion(ApplyPromotionRequest) returns (ApplyPromotionResponse);
+  rpc GetPromotionUsage(GetPromotionUsageRequest) returns (PromotionUsageListResponse);
+}
+
+// Messages
+message CreatePromotionRequest {
+  string code = 1;
+  string name = 2;
+  optional string description = 3;
+  string type = 4; // percentage, fixed_amount, trial_extension, free_months
+  optional string status = 5;
+  optional double discountValue = 6;
+  optional int32 trialExtensionDays = 7;
+  optional int32 freeMonths = 8;
+  optional string applicableTo = 9; // all_plans, specific_plans, first_time_only
+  repeated int32 specificPlanIds = 10;
+  optional int32 maxUses = 11;
+  optional int32 maxUsesPerCustomer = 12;
+  optional string validFrom = 13;
+  optional string validUntil = 14;
+  optional double minPurchaseAmount = 15;
+  optional bool isFirstTimeOnly = 16;
+  optional bool isRecurring = 17;
+}
+
+message UpdatePromotionRequest {
+  int32 id = 1;
+  optional string code = 2;
+  optional string name = 3;
+  optional string description = 4;
+  optional string type = 5;
+  optional string status = 6;
+  optional double discountValue = 7;
+  optional int32 trialExtensionDays = 8;
+  optional int32 freeMonths = 9;
+  optional string applicableTo = 10;
+  repeated int32 specificPlanIds = 11;
+  optional int32 maxUses = 12;
+  optional int32 maxUsesPerCustomer = 13;
+  optional string validFrom = 14;
+  optional string validUntil = 15;
+  optional double minPurchaseAmount = 16;
+  optional bool isFirstTimeOnly = 17;
+  optional bool isRecurring = 18;
+}
+
+message GetPromotionByIdRequest {
+  int32 id = 1;
+}
+
+message GetPromotionByCodeRequest {
+  string code = 1;
+}
+
+message GetAllPromotionsRequest {
+  optional string status = 1;
+  optional int32 limit = 2;
+  optional int32 offset = 3;
+}
+
+message DeletePromotionRequest {
+  int32 id = 1;
+}
+
+message ValidatePromotionRequest {
+  string code = 1;
+  int32 customerId = 2;
+  int32 planId = 3;
+  optional double purchaseAmount = 4;
+}
+
+message ApplyPromotionRequest {
+  string code = 1;
+  int32 customerId = 2;
+  int32 planId = 3;
+  optional int32 subscriptionId = 4;
+  optional double purchaseAmount = 5;
+}
+
+message GetPromotionUsageRequest {
+  optional int32 promotionId = 1;
+  optional int32 customerId = 2;
+  optional int32 limit = 3;
+  optional int32 offset = 4;
+}
+
+// Responses
+message PromotionResponse {
+  int32 id = 1;
+  string code = 2;
+  string name = 3;
+  string description = 4;
+  string type = 5;
+  string status = 6;
+  optional double discountValue = 7;
+  optional int32 trialExtensionDays = 8;
+  optional int32 freeMonths = 9;
+  string applicableTo = 10;
+  repeated int32 specificPlanIds = 11;
+  optional int32 maxUses = 12;
+  int32 currentUses = 13;
+  optional int32 maxUsesPerCustomer = 14;
+  optional string validFrom = 15;
+  optional string validUntil = 16;
+  optional double minPurchaseAmount = 17;
+  bool isFirstTimeOnly = 18;
+  bool isRecurring = 19;
+  string createdAt = 20;
+  string updatedAt = 21;
+}
+
+message PromotionListResponse {
+  repeated PromotionResponse promotions = 1;
+  int32 total = 2;
+}
+
+message DeletePromotionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CalculatedDiscount {
+  double originalAmount = 1;
+  double discountAmount = 2;
+  double finalAmount = 3;
+  optional int32 trialExtensionDays = 4;
+  optional int32 freeMonths = 5;
+}
+
+message ValidationResponse {
+  bool valid = 1;
+  optional string error = 2;
+  optional PromotionResponse promotion = 3;
+  optional CalculatedDiscount calculatedDiscount = 4;
+}
+
+message ApplyPromotionResponse {
+  bool success = 1;
+  optional string error = 2;
+  optional PromotionResponse promotion = 3;
+  optional CalculatedDiscount discount = 4;
+  int32 usageId = 5;
+}
+
+message PromotionUsageResponse {
+  int32 id = 1;
+  int32 promotionId = 2;
+  int32 customerId = 3;
+  optional int32 subscriptionId = 4;
+  double discountAmount = 5;
+  double originalAmount = 6;
+  double finalAmount = 7;
+  string usedAt = 8;
+}
+
+message PromotionUsageListResponse {
+  repeated PromotionUsageResponse usages = 1;
+  int32 total = 2;
+}

@@ -223,7 +223,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/product/promotion-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/product/promotion-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/product/promotion-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/product/promotion-svc/src"
+          }
+        ]
       }
     },
     "rl-scheduler": {
@@ -241,7 +247,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/order/subscription-svc/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/order/subscription-svc/tsconfig.app.json"
+        "tsConfigPath": "apps/order/subscription-svc/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/order/subscription-svc/src"
+          }
+        ] 
       }
     }
   }
