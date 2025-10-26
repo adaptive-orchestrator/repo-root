@@ -1,4 +1,4 @@
-start auth-svc
+start auth-svc api-gateway customer-svc
 auth/signup
 
 start catalogue  --- cái này chưa có update
