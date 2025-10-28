@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promotion-svc
+  namespace: product
+  labels:
+    app: promotion-svc
+    model: MultiBusinessModel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promotion-svc
+  template:
+    metadata:
+      labels:
+        app: promotion-svc
+        risk: medium
+    spec:
+      containers:
+        - name: promotion-svc
+          image: your-registry/promotion-svc:latest
+          ports:
+            - containerPort: 3009
+          envFrom:
+            - configMapRef:
+                name: env
+          env:
+            - name: BUSINESS_MODEL
+              value: "multi"
+            - name: SUPPORTED_MODELS
+              value: "retail,subscription"
+            - name: RETAIL_PRODUCTS_COUNT
+              value: "2"
+            - name: SUBSCRIPTION_PLANS_COUNT
+              value: "1"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3009
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3009
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      restartPolicy: Always

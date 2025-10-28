@@ -11,6 +11,10 @@
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
+    "start:llm": "nest start llm-orchestrator",
+    "start:llm:dev": "nest start llm-orchestrator --watch",
+    "start:k8s-generator": "nest start k8s-generator",
+    "start:k8s-generator:dev": "nest start k8s-generator --watch",
     "start:customer": "nest start customer-svc",
     "start:customer:dev": "nest start customer-svc --watch",
     "start:customer:debug": "nest start customer-svc --debug --watch",
@@ -37,6 +41,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@grpc/grpc-js": "^1.14.0",
+    "@kubernetes/client-node": "^1.4.0",
     "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",

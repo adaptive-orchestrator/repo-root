@@ -4,11 +4,21 @@ import { LlmOrchestratorService } from './llm-orchestrator.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { CodeSearchService } from './service/code-search.service';
+import { K8sIntegrationService } from './service/k8s-integration.service';
+import { LlmOutputValidator } from './validators/llm-output.validator';
+import { KafkaProducerService } from './service/kafka-producer.service';
+import { EventModule } from '@bmms/event';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    
+    // Kafka Event Module
+    EventModule.forRoot({
+      clientId: 'llm-orchestrator',
+      consumerGroupId: 'llm-orchestrator-group',
     }),
     
     JwtModule.registerAsync({
@@ -27,6 +37,6 @@ import { CodeSearchService } from './service/code-search.service';
 
   ],
   controllers: [LlmOrchestratorController],
-  providers: [LlmOrchestratorService,CodeSearchService],
+  providers: [LlmOrchestratorService, CodeSearchService, K8sIntegrationService, LlmOutputValidator, KafkaProducerService],
 })
 export class LlmOrchestratorModule { }

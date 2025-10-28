@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Param } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { LlmOrchestratorService } from './llm-orchestrator.service';
 import type { LlmChatRequest, LlmChatResponse } from './llm-orchestrator/llm-orchestrator.interface';
 import { CodeSearchService } from './service/code-search.service';
+import { K8sIntegrationService } from './service/k8s-integration.service';
 
 
 @Controller()
@@ -10,6 +11,7 @@ export class LlmOrchestratorController {
   constructor(
     private readonly llmOrchestratorService: LlmOrchestratorService,
     private readonly codeSearchService: CodeSearchService,
+    private readonly k8sIntegrationService: K8sIntegrationService,
   ) { }
 
   @GrpcMethod('LlmOrchestratorService', 'ChatOnce')
@@ -61,5 +63,48 @@ export class LlmOrchestratorController {
   async ragStats() {
     const stats = await this.codeSearchService.getStats();
     return stats;
+  }
+
+  /**
+   * Chat with LLM and auto-deploy to K8s
+   * Query param: ?dryRun=true để chỉ sinh YAML không apply
+   */
+  @Post('/llm/chat-and-deploy')
+  async chatAndDeploy(
+    @Body() body: { message: string; tenant_id?: string; role?: string; lang?: 'vi' | 'en'; auto_deploy?: boolean },
+    @Query('dryRun') dryRun?: string,
+  ) {
+    const isDryRun = dryRun === 'true';
+    
+    // 1. Get LLM response
+    const llmResponse = await this.llmOrchestratorService.ask(
+      body.message,
+      body.tenant_id || 't-unknown',
+      body.role || 'guest',
+      body.lang || 'vi',
+    );
+
+    // 2. Auto-deploy if enabled
+    let deploymentResult = null;
+    if (body.auto_deploy !== false) {
+      deploymentResult = await this.k8sIntegrationService.triggerDeployment(llmResponse, isDryRun);
+    }
+
+    return {
+      llm: llmResponse,
+      deployment: deploymentResult,
+      mode: isDryRun ? 'DRY-RUN (YAML only)' : 'FULL (Applied to cluster)',
+    };
+  }
+
+  /**
+   * Check deployment status
+   */
+  @Get('/k8s/status/:namespace/:service')
+  async getDeploymentStatus(
+    @Param('namespace') namespace: string,
+    @Param('service') service: string,
+  ) {
+    return this.k8sIntegrationService.checkDeploymentStatus(namespace, service);
   }
 }

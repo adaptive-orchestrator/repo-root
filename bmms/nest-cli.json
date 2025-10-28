@@ -24,6 +24,21 @@
         ]
       }
     },
+    "k8s-generator": {
+      "type": "application",
+      "root": "apps/platform/k8s-generator",
+      "entryFile": "main",
+      "sourceRoot": "apps/platform/k8s-generator/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/platform/k8s-generator/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/platform/k8s-generator/src"
+          }
+        ]
+      }
+    },
     "auth": {
       "type": "library",
       "root": "libs/auth",

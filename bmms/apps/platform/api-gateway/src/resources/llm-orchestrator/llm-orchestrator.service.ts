@@ -17,7 +17,9 @@ export class LlmOrchestratorService implements OnModuleInit {
   private readonly logger = new Logger(LlmOrchestratorService.name);
   private llmGrpcService: LlmOrchestratorGrpcService;
 
-  constructor(@Inject('LLM_PACKAGE') private readonly client: ClientGrpc) {}
+  constructor(
+    @Inject('LLM_PACKAGE') private readonly client: ClientGrpc,
+  ) {}
 
   onModuleInit() {
     this.llmGrpcService = this.client.getService<LlmOrchestratorGrpcService>('LlmOrchestratorService');

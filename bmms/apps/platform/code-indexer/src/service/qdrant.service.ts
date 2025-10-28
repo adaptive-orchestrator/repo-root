@@ -1,6 +1,5 @@
 // code-indexer/src/services/qdrant.service.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { QdrantClient } from '@qdrant/js-client-rest';
 import { ConfigService } from '@nestjs/config';
 import { EmbeddingPoint } from '../types';
 import { EmbeddingService } from './embedding.service';
@@ -8,26 +7,32 @@ import { EmbeddingService } from './embedding.service';
 @Injectable()
 export class QdrantService implements OnModuleInit {
   private readonly logger = new Logger(QdrantService.name);
-  private client: QdrantClient;
+  private client: any;
   private collectionName: string;
   private vectorSize: number;
+  private QdrantClient: any;
 
   constructor(
     private configService: ConfigService,
     private embeddingService: EmbeddingService, // Inject để lấy vectorSize
   ) {
-    const url = this.configService.get<string>('QDRANT_URL') || 'http://localhost:6333';
     this.collectionName = this.configService.get<string>('QDRANT_COLLECTION') || 'codebase_embeddings';
     
     // Lấy vector size từ EmbeddingService
     this.vectorSize = this.embeddingService.getVectorSize(); // 768 cho Gemini
-    
-    this.client = new QdrantClient({ url });
-    this.logger.log(`Connected to Qdrant at ${url}`);
-    this.logger.log(`Vector size: ${this.vectorSize}`);
   }
 
   async onModuleInit() {
+    // Dynamic import for ES Module
+    const { QdrantClient } = await import('@qdrant/js-client-rest');
+    this.QdrantClient = QdrantClient;
+    
+    const url = this.configService.get<string>('QDRANT_URL') || 'http://localhost:6333';
+    this.client = new QdrantClient({ url });
+    this.logger.log(`Connected to Qdrant at ${url}`);
+    this.logger.log(`Vector size: ${this.vectorSize}`);
+    
+    // Tiếp tục với code khởi tạo collection
     await this.ensureCollection();
   }
 
@@ -37,7 +42,7 @@ export class QdrantService implements OnModuleInit {
   private async ensureCollection() {
     try {
       const collections = await this.client.getCollections();
-      const exists = collections.collections.some(c => c.name === this.collectionName);
+      const exists = collections.collections.some((c: any) => c.name === this.collectionName);
 
       if (!exists) {
         this.logger.log(`Creating collection: ${this.collectionName}`);
@@ -51,7 +56,7 @@ export class QdrantService implements OnModuleInit {
       } else {
         this.logger.log(`✅ Collection already exists: ${this.collectionName}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to ensure collection: ${error.message}`);
       throw error;
     }
@@ -65,7 +70,7 @@ export class QdrantService implements OnModuleInit {
       this.logger.log(`Deleting collection: ${this.collectionName}`);
       await this.client.deleteCollection(this.collectionName);
       await this.ensureCollection();
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Could not delete collection: ${error.message}`);
       await this.ensureCollection();
     }

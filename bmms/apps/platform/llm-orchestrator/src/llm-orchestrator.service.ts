@@ -2,12 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { mkdir, writeFile } from 'fs/promises';
 import * as path from 'path';
-
-
-// Zod schema for validation (keep your existing schema)
 import { z } from 'zod';
 import { LlmChatResponse } from './llm-orchestrator/llm-orchestrator.interface';
 import { CodeSearchService } from './service/code-search.service';
+import { LlmOutputValidator } from './validators/llm-output.validator';
+import { K8sIntegrationService } from './service/k8s-integration.service';
 
 const LLMReplySchema = z.object({
   proposal_text: z.string(),
@@ -30,28 +29,114 @@ const LLMReplySchema = z.object({
 
 type LLMReply = z.infer<typeof LLMReplySchema>;
 
-const SYSTEM_PROMPT = `You are an assistant that converts Vietnamese business requests into a JSON ChangeSet.
+const SYSTEM_PROMPT = `You are an expert business analyst that converts Vietnamese business model requests into JSON ChangeSet for Kubernetes deployment automation.
 
-Return ONLY JSON, no prose. Shape: {
- "proposal_text": string,
- "changeset": {"model": string, "features": Array<{"key": string, "value": string|number|boolean}>, "impacted_services": string[]},
- "metadata": {"intent": string, "confidence": number, "risk": "low"|"medium"|"high"}
-}
+**BUSINESS MODELS:**
+1. **Retail Model**: One-time purchase, inventory management
+   - Required services: OrderService, InventoryService
+   - Note: 1 OrderService handles ALL retail products via database (product_id)
+   
+2. **Subscription Model**: Recurring payment, subscription plans
+   - Required services: SubscriptionService, PromotionService
+   - Note: 1 SubscriptionService handles ALL subscription plans via database
+   
+3. **Freemium Model**: Free tier with upgrade option
+   - Required services: SubscriptionService (with free flag), PromotionService
+   - Note: Same SubscriptionService handles both free and paid tiers
+   
+4. **Multi-Model**: Support multiple models simultaneously
+   - Required services: ALL of the above
+   - Note: SHARED SERVICE PATTERN - Each service type deploys ONCE, not per product
+   - Example: 2 retail products + 1 subscription → Still only 1 OrderService, 1 SubscriptionService
 
-Return ONLY valid JSON in this format:
+**CORE SERVICES (always needed):**
+- AuthService, CustomerService, CRMOrchestratorService
+- APIGatewayService
+- CatalogueService (Product domain)
+- BillingService, PaymentService (Finance domain)
+
+**SERVICE MAPPING:**
+- OrderService → order-svc (namespace: order, port: 3011)
+- InventoryService → inventory-svc (namespace: order, port: 3013)
+- SubscriptionService → subscription-svc (namespace: order, port: 3012)
+- PromotionService → promotion-svc (namespace: product, port: 3009)
+- CatalogueService → catalogue-svc (namespace: product, port: 3007)
+- BillingService → billing-svc (namespace: finance, port: 3003)
+- PaymentService → payment-svc (namespace: finance, port: 3015)
+- AuthService → auth-svc (namespace: customer, port: 3000)
+- CustomerService → customer-svc (namespace: customer, port: 3001)
+- CRMOrchestratorService → crm-orchestrator (namespace: customer, port: 3002)
+- APIGatewayService → api-gateway (namespace: platform, port: 3099)
+
+**INTENT TYPES:**
+- "business_model_change": Chuyển đổi từ model này sang model khác
+- "business_model_expansion": Mở rộng để hỗ trợ nhiều models
+- "update": Cập nhật config của services hiện tại
+- "scale": Thay đổi số lượng replicas
+
+**OUTPUT FORMAT:**
+Return ONLY valid JSON in this exact format:
 {
-  "proposal_text": "Detailed explanation in Vietnamese",
+  "proposal_text": "Detailed explanation in Vietnamese about what changes are needed",
   "changeset": {
-    "model": "ModelName",
-    "features": [{"key": "fieldName", "value": "value"}],
-    "impacted_services": ["service1", "service2"]
+    "model": "BusinessModel|MultiBusinessModel|SubscriptionPlan|etc",
+    "features": [
+      {"key": "business_model", "value": "retail|subscription|freemium|multi"},
+      {"key": "other_config_key", "value": "config_value"}
+    ],
+    "impacted_services": ["ServiceName1", "ServiceName2", ...]
   },
   "metadata": {
-    "intent": "create|update|delete",
-    "confidence": 0.95,
-    "risk": "low|medium|high"
+    "intent": "business_model_change|business_model_expansion|update|scale",
+    "confidence": 0.85-0.99,
+    "risk": "low|medium|high",
+    "from_model": "retail|subscription|etc (if applicable)",
+    "to_model": "subscription|multi|etc (if applicable)"
   }
-}`;
+}
+
+**EXAMPLES:**
+
+Example 1 - Retail to Subscription:
+Input: "Chuyển sản phẩm Premium Plan sang subscription 199k/tháng"
+Output: {
+  "changeset": {
+    "model": "BusinessModel",
+    "features": [
+      {"key": "business_model", "value": "subscription"},
+      {"key": "subscription_price", "value": 199000}
+    ],
+    "impacted_services": ["SubscriptionService", "PromotionService", "BillingService", "PaymentService", "CatalogueService"]
+  },
+  "metadata": {
+    "intent": "business_model_change",
+    "from_model": "retail",
+    "to_model": "subscription"
+  }
+}
+
+Example 2 - Multi-Model with multiple products:
+Input: "Hỗ trợ 2 retail products, 1 subscription, và 1 freemium"
+Output: {
+  "changeset": {
+    "model": "MultiBusinessModel",
+    "features": [
+      {"key": "business_model", "value": "multi"},
+      {"key": "supported_models", "value": "retail,subscription,freemium"},
+      {"key": "retail_products_count", "value": 2},
+      {"key": "subscription_plans_count", "value": 1},
+      {"key": "freemium_enabled", "value": true}
+    ],
+    "impacted_services": ["OrderService", "InventoryService", "SubscriptionService", "PromotionService", "CatalogueService", "BillingService", "PaymentService", "APIGatewayService", "AuthService"]
+  },
+  "metadata": {
+    "intent": "business_model_expansion",
+    "to_model": "multi",
+    "note": "SHARED SERVICE PATTERN: Each service in impacted_services list will be deployed ONCE (e.g., 1 OrderService handles both retail products, 1 SubscriptionService handles subscription + freemium)"
+  }
+}
+
+Return ONLY the JSON, no markdown code blocks, no additional text.`;
 
 @Injectable()
 export class LlmOrchestratorService {
@@ -60,8 +145,11 @@ export class LlmOrchestratorService {
   private geminiClient: GoogleGenerativeAI;
   private useRAG = process.env.USE_RAG === 'true'; // 👈 Feature flag
 
-  constructor(private codeSearchService: CodeSearchService, // 👈 Inject
-    ) {
+  constructor(
+    private codeSearchService: CodeSearchService,
+    private validator: LlmOutputValidator,
+    private k8sIntegrationService: K8sIntegrationService,
+  ) {
     this.geminiClient = new GoogleGenerativeAI(
       process.env.GEMINI_API_KEY || '',
     );
@@ -134,6 +222,25 @@ export class LlmOrchestratorService {
 
     const validated = LLMReplySchema.parse(parsed);
 
+    // 👈 ADD: Business logic validation
+    const validationResult = this.validator.validate(validated);
+    
+    if (!validationResult.isValid) {
+      throw new Error(
+        `LLM output validation failed:\n${validationResult.errors.join('\n')}`,
+      );
+    }
+    
+    // Log warnings if any
+    if (validationResult.warnings.length > 0) {
+      console.warn('[LLM Validator] Warnings:', validationResult.warnings.join('; '));
+    }
+    
+    // Log metadata
+    if (validationResult.metadata) {
+      console.log('[LLM Validator] Metadata:', JSON.stringify(validationResult.metadata, null, 2));
+    }
+
     // Convert value to string for gRPC (proto expects string)
     const response: LlmChatResponse = {
       proposal_text: validated.proposal_text,
@@ -147,6 +254,24 @@ export class LlmOrchestratorService {
       },
       metadata: validated.metadata,
     };
+
+    // 🚀 AUTO-TRIGGER K8S DEPLOYMENT VIA KAFKA
+    // Automatically publish deployment event after successful LLM processing
+    try {
+      const autoDeployEnabled = process.env.AUTO_DEPLOY_ENABLED === 'true';
+      const dryRunDefault = process.env.DEFAULT_DRY_RUN !== 'false'; // Default: true
+      
+      if (autoDeployEnabled || dryRunDefault) {
+        // Trigger deployment in background (don't wait)
+        this.k8sIntegrationService.triggerDeployment(response, dryRunDefault)
+          .catch(err => {
+            console.error('[LLM] Failed to trigger K8s deployment:', err.message);
+          });
+      }
+    } catch (error) {
+      // Don't fail the LLM request if deployment trigger fails
+      console.error('[LLM] Error triggering deployment:', error instanceof Error ? error.message : String(error));
+    }
 
     return response;
   }

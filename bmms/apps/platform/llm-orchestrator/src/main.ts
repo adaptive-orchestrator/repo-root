@@ -1,51 +1,39 @@
-import { NestFactory } from '@nestjs/core';
+﻿import { NestFactory } from '@nestjs/core';
 import { LlmOrchestratorModule } from './llm-orchestrator.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { LlmOrchestratorService } from './llm-orchestrator.service';
 import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const appContext = await NestFactory.createApplicationContext(LlmOrchestratorModule);
-   
+  // Create HTTP app first
+  const httpApp = await NestFactory.create(LlmOrchestratorModule);
+  httpApp.enableCors();
   
-    const configService = appContext.get(ConfigService); // ✅ đúng
-  const grpcUrl = configService.get<string>('GRPC_LISTEN_LLM_URL');
+  // Get config
+  const configService = httpApp.get(ConfigService);
+  const grpcUrl = configService.get('GRPC_LISTEN_LLM_URL') || '0.0.0.0:50052';
+  const httpPort = configService.get('LLM_ORCHESTRATOR_PORT') || 3001;
+
+  // Add gRPC microservice to HTTP app
+  httpApp.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'llm',
+      protoPath: join(__dirname, './proto/llm-orchestrator.proto'),
+      url: grpcUrl,
+    },
+  });
+
+  // Start all microservices + HTTP
+  await httpApp.startAllMicroservices();
+  await httpApp.listen(httpPort);
   
-    const app = await NestFactory.createMicroservice<MicroserviceOptions>(LlmOrchestratorModule, {
-      transport: Transport.GRPC,
-      options: {
-        package: 'llm',
-        protoPath: join(__dirname, './proto/llm-orchestrator.proto'),
-        url: grpcUrl,
-      },
-    });
-  
-    await app.listen();
+  console.log(`🚀 LLM Orchestrator HTTP Server: http://localhost:${httpPort}`);
+  console.log(`🚀 LLM Orchestrator gRPC Server: ${grpcUrl}`);
+  console.log(`✅ Kafka producer ready (topic: k8s.deployment.requests)`);
+  console.log(`📋 HTTP Endpoints:`);
+  console.log(`   POST http://localhost:${httpPort}/llm/chat-and-deploy?dryRun=true`);
+  console.log(`   GET  http://localhost:${httpPort}/rag/health`);
+  console.log(`   POST http://localhost:${httpPort}/rag/search`);
 }
 bootstrap();
-
-//  const configService = appContext.get(ConfigService);
-//   const grpcUrl = configService.get('GRPC_LISTEN_LLM_URL');
-//   const httpPort = configService.get('HTTP_PORT') || 3001; // ✅ thêm port cho HTTP
-
-//   // ✅ Tạo HTTP app trước
-//   const httpApp = await NestFactory.create(LlmOrchestratorModule);
-//   httpApp.enableCors(); // enable CORS nếu cần
-  
-//   // ✅ Tạo gRPC microservice
-//   const grpcApp = httpApp.connectMicroservice<MicroserviceOptions>({
-//     transport: Transport.GRPC,
-//     options: {
-//       package: 'llm',
-//       protoPath: join(__dirname, './proto/llm-orchestrator.proto'),
-//       url: grpcUrl,
-//     },
-//   });
-
-//   // ✅ Start cả 2 services
-//   await httpApp.startAllMicroservices();
-//   await httpApp.listen(httpPort);
-  
-//   console.log(`🚀 HTTP Server running on: http://localhost:${httpPort}`);
-//   console.log(`🚀 gRPC Server running on: ${grpcUrl}`);

@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   ValidationPipe,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -67,5 +68,53 @@ export class LlmOrchestratorController {
       role,
       lang ?? 'vi',
     );
+  }
+
+  @Post('chat-and-deploy')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Chat with LLM and trigger K8s deployment (via gRPC + Kafka)',
+    description: 'Phân tích nghiệp vụ qua gRPC. LLM tự động publish Kafka event. Dùng ?dryRun=true để chỉ sinh YAML.',
+  })
+  @ApiBody({ 
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Tôi muốn 2 sản phẩm retail và 1 gói subscription' },
+        tenant_id: { type: 'string', example: 't-customer-123' },
+        role: { type: 'string', example: 'admin' },
+        lang: { type: 'string', enum: ['vi', 'en'], example: 'vi' },
+      },
+      required: ['message'],
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Response chứa LLM output. Kafka event được publish tự động.',
+  })
+  async chatAndDeploy(
+    @Body(new ValidationPipe({ whitelist: true }))
+    body: LlmChatRequestDto,
+    @Query('dryRun') dryRun?: string,
+  ) {
+    const { message, tenant_id, role, lang } = body;
+    
+    // Call LLM via gRPC
+    // LLM will automatically trigger Kafka deployment after processing
+    const llmResponse = await this.llmOrchestratorService.ask(
+      message,
+      tenant_id,
+      role,
+      lang ?? 'vi',
+    );
+
+    return {
+      llm: llmResponse,
+      deployment: {
+        message: 'Deployment event will be published automatically by LLM service',
+        mode: dryRun === 'true' ? 'DRY-RUN (YAML only)' : 'FULL (Apply to K8s)',
+        note: 'Check LLM Orchestrator and K8s Generator logs for deployment status',
+      },
+    };
   }
 }
