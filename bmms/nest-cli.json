@@ -117,7 +117,13 @@
       "entryFile": "main",
       "sourceRoot": "apps/customer/crm-orchestrator/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/customer/crm-orchestrator/tsconfig.app.json"
+        "tsConfigPath": "apps/customer/crm-orchestrator/tsconfig.app.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/out-tsc/apps/customer/crm-orchestrator/src"
+          }
+        ]
       }
     },
     "customer-svc": {
