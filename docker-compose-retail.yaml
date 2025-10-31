@@ -76,7 +76,7 @@ services:
   customer-src:
     container_name: customer-service
     build:
-      dockerfile: Dockerfile.inventory
+      dockerfile: Dockerfile.customer
       context: ./bmms
     env_file: ./docker-retail.env
     healthcheck:
