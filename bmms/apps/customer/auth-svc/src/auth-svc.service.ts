@@ -37,6 +37,7 @@ export class AuthSvcService {
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const passwordMatch = await bcrypt.compare(password, user.password);
+    console.log('Password match:', passwordMatch);
 
     if (!passwordMatch) {
       throw new UnauthorizedException('Invalid credentials');
@@ -59,6 +60,8 @@ export class AuthSvcService {
     if (existing) throw new ConflictException('Email already exists');
 
     const hashed = await bcrypt.hash(password, 10);
+    console.log('User signed up:', email);
+    console.log('Hashed password:', hashed);
     
     // Create user với role từ DTO (nếu có), mặc định là USER
     const user = this.userRepo.create({ 

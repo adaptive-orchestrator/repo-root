@@ -32,7 +32,7 @@ export class AuthController {
   @ApiBadRequestResponse({ type: AuthErrorResponseDto, description: 'Validation error' })
   @ApiConflictResponse({ type: AuthErrorResponseDto, description: 'Email already exists' })
   async signup(@Body(ValidationPipe) body: SignupDto) {
-    const something = await this.authService.signup(body.email, body.password, body.name);
+    const something = await this.authService.signup(body.email, body.password, body.name, body.role);
     return something;
   }
 
