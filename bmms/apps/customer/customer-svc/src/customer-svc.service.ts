@@ -29,6 +29,7 @@ export class CustomerSvcService {
         name: customer.name,
         email: customer.email,
         createdAt: customer.createdAt,
+        role: customer.role,
       },
     };
 
@@ -39,7 +40,26 @@ export class CustomerSvcService {
   }
 
   async findAll(page: number = 1, limit: number = 10, segment?: string): Promise<Customer[]> {
-    const query = this.repo.createQueryBuilder('customer');
+    const query = this.repo.createQueryBuilder('customer')
+      .select([
+        'customer.id',
+        'customer.name',
+        'customer.email',
+        'customer.phone',
+        'customer.address',
+        'customer.segment',
+        'customer.status',
+        'customer.lifecycleStage',
+        'customer.tenantId',
+        'customer.userId',
+        'customer.totalSpent',
+        'customer.orderCount',
+        'customer.lastOrderDate',
+        'customer.notes',
+        'customer.role',
+        'customer.createdAt',
+        'customer.updatedAt',
+      ]);
     
     if (segment) {
       query.where('customer.segment = :segment', { segment });

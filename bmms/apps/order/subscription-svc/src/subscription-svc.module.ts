@@ -11,13 +11,18 @@ import { SubscriptionEventListener } from './subscription.event-listener';
 import { Subscription } from './entities/subscription.entity';
 import { SubscriptionHistory } from './entities/subscription-history.entity';
 import { ProrationService } from './proration/proration.service';
+import { AddonController } from './addon.controller';
+import { AddonService } from './addon.service';
+import { Addon } from './entities/addon.entity';
+import { UserAddon } from './entities/user-addon.entity';
+import { AddonGrpcController } from './addon.grpc-controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forFeature([Subscription, SubscriptionHistory]),
+    TypeOrmModule.forFeature([Subscription, SubscriptionHistory, Addon, UserAddon]),
     DbModule.forRoot({ prefix: 'SUBSCRIPTION_SVC' }),
     EventModule.forRoot({
       clientId: 'subscription-svc',
@@ -45,7 +50,7 @@ import { ProrationService } from './proration/proration.service';
       },
     ]),
   ],
-  controllers: [subscriptionSvcController, SubscriptionEventListener],
-  providers: [subscriptionSvcService, ProrationService],
+  controllers: [subscriptionSvcController, SubscriptionEventListener, AddonController, AddonGrpcController],
+  providers: [subscriptionSvcService, ProrationService, AddonService],
 })
 export class subscriptionSvcModule {}

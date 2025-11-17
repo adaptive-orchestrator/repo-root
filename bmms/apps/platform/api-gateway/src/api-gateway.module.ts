@@ -1,8 +1,14 @@
 import { Module } from '@nestjs/common';
+<<<<<<< HEAD
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 
+=======
+import { ConfigModule } from '@nestjs/config';
+import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
+>>>>>>> origin/merge-containerzation
 import { ApiGatewayController } from './api-gateway.controller';
 import { ApiGatewayService } from './api-gateway.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -16,6 +22,8 @@ import { BillingModule } from './resources/billing/billing.module';
 import { PaymentModule } from './resources/payment/payment.module';
 import { SubscriptionModule } from './resources/subscription/subscription.module';
 import { PromotionModule } from './resources/promotion/promotion.module';
+import { AddonModule } from './resources/addon/addon.module';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
@@ -24,17 +32,10 @@ import { PromotionModule } from './resources/promotion/promotion.module';
       envFilePath: '.env',
     }),
 
-    PassportModule.register({
-      defaultStrategy: 'jwt',
-    }),
-
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '1d' },
-      }),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      signOptions: { expiresIn: '1d' },
     }),
 
     AuthModule,
@@ -47,6 +48,7 @@ import { PromotionModule } from './resources/promotion/promotion.module';
     PaymentModule,
     SubscriptionModule,
     PromotionModule,
+    AddonModule,
   ],
   controllers: [ApiGatewayController],
   providers: [

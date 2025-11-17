@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, Inject, HttpException, HttpStatus } from '@ne
 import type { ClientGrpc } from '@nestjs/microservices';
 import { catchError, firstValueFrom } from 'rxjs';
 import { LoginDto } from './dto/login.dto';
-import { SignupDto } from './dto/signup.dto';
+import { SignupDto, Role } from './dto/signup.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 interface AuthGrpcService {
@@ -47,9 +47,9 @@ export class AuthService implements OnModuleInit {
     }
   }
 
-  async signup(email: string, password: string, name: string) {
+  async signup(email: string, password: string, name: string, role?: Role) {
     try {
-      const signupDto: SignupDto = { email, password, name };
+      const signupDto: SignupDto = { email, password, name, role };
       const response = await firstValueFrom(
         this.authGrpcService.signup(signupDto).pipe(
           catchError(error => {
