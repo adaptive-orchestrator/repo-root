@@ -16,12 +16,11 @@ RUN npm run build
 # ========================
 FROM node:22-alpine
 WORKDIR /usr/bmms
-COPY --from=builder /usr/bmms/dist/apps/platform/k8s-generator ./dist/apps/platform/k8s-generator
-COPY ./apps/platform/k8s-generator/src/templates ./apps/platform/k8s-generator/src/templates
+COPY --from=builder /usr/bmms/dist/apps/bmms ./dist/apps/bmms
 COPY --from=builder /usr/bmms/dist/libs ./dist/libs/
 COPY .env ./
 COPY package*.json ./
 ENV NODE_ENV=production
 RUN npm install --omit=dev
 
-CMD ["node", "dist/apps/platform/k8s-generator/src/main.js"]
+CMD ["node", "dist/apps/bmms/src/main.js"]

@@ -1,14 +1,7 @@
 import { Module } from '@nestjs/common';
-<<<<<<< HEAD
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
-
-=======
-import { ConfigModule } from '@nestjs/config';
-import { PassportModule } from '@nestjs/passport';
-import { JwtModule } from '@nestjs/jwt';
->>>>>>> origin/merge-containerzation
 import { ApiGatewayController } from './api-gateway.controller';
 import { ApiGatewayService } from './api-gateway.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -23,7 +16,6 @@ import { PaymentModule } from './resources/payment/payment.module';
 import { SubscriptionModule } from './resources/subscription/subscription.module';
 import { PromotionModule } from './resources/promotion/promotion.module';
 import { AddonModule } from './resources/addon/addon.module';
-import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
