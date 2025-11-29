@@ -48,7 +48,26 @@ export class DbModule {
               database,
               autoLoadEntities: true,
               synchronize: true, // ⚠️ CHỈ dùng trong development, tắt đi ở production!
-              logging: process.env.NODE_ENV === 'development', // Chỉ log khi dev
+              logging: false, // 🚀 Disable logging for performance
+              // 🚀 Connection Pool Optimization (Round 2)
+              extra: {
+                connectionLimit: 100,       // Tăng từ 50 lên 100
+                waitForConnections: true,
+                queueLimit: 200,           // Tăng từ 100 lên 200
+                enableKeepAlive: true,
+                keepAliveInitialDelay: 10000,
+                acquireTimeout: 60000,     // 60s timeout
+                timeout: 60000,
+                maxIdle: 50,               // Keep 50 idle connections ready
+                idleTimeout: 60000,
+              },
+              // 🚀 Query Cache (Extended)
+              cache: {
+                duration: 60000, // Cache queries 60 seconds
+              },
+              // 🚀 Retry Strategy
+              retryAttempts: 3,
+              retryDelay: 1000,
             };
           },
         }),

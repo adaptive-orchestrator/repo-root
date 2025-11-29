@@ -286,8 +286,29 @@ export class InventoryService implements OnModuleInit {
     return inventory;
   }
 
-  async listAll(): Promise<Inventory[]> {
-    return this.inventoryRepo.find({ relations: ['reservations'] });
+  async listAll(page: number = 1, limit: number = 20): Promise<{
+    items: Inventory[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const skip = (page - 1) * limit;
+    
+    const [items, total] = await this.inventoryRepo.findAndCount({
+      relations: ['reservations'],
+      skip,
+      take: limit,
+      order: { id: 'DESC' },
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getLowStockItems(): Promise<Inventory[]> {

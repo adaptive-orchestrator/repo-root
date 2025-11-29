@@ -14,6 +14,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PaymentService } from './payment-svc.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
+import { SubscriptionPaymentDto, SubscriptionPaymentResponseDto } from './dto/subscription-payment.dto';
 import { Payment } from './entities/payment.entity';
 
 @ApiTags('Payments')
@@ -46,6 +47,26 @@ export class PaymentController {
     @Param('invoiceId', ParseIntPipe) invoiceId: number,
   ): Promise<Payment[]> {
     return this.paymentService.getByInvoice(invoiceId);
+  }
+
+  // =================== SUBSCRIPTION PAYMENT ===================
+  // API thanh toán subscription - gọi trực tiếp từ frontend
+  // Sau này sẽ thay bằng VNPay/Momo integration
+  @Post('subscription/pay')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Thanh toán subscription',
+    description: 'API thanh toán subscription trực tiếp. Tạo invoice, xử lý thanh toán và emit event để activate subscription.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Thanh toán thành công', 
+    type: SubscriptionPaymentResponseDto 
+  })
+  async paySubscription(
+    @Body() dto: SubscriptionPaymentDto,
+  ): Promise<SubscriptionPaymentResponseDto> {
+    return this.paymentService.processSubscriptionPayment(dto);
   }
 
   // =================== GET PAYMENT BY ID ===================

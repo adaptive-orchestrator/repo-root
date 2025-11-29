@@ -23,6 +23,10 @@ import { EventTopics } from '@bmms/event';
 // Import billing strategies
 import { BillingStrategyService } from './strategies/billing-strategy.service';
 
+// Debug flag - set to false to reduce console output
+const DEBUG = process.env.BILLING_DEBUG === 'true';
+const log = (...args: any[]) => DEBUG && console.log(...args);
+
 
 @Injectable()
 export class BillingService {
@@ -49,30 +53,40 @@ export class BillingService {
   // ============= CRUD =============
 
   async create(dto: CreateInvoiceDto): Promise<Invoice> {
-    // Check if invoice already exists for this order
-    const existing = await this.invoiceRepo.findOne({
-      where: { orderId: dto.orderId },
-    });
+    // Check if invoice already exists for this order (only if orderId is provided and > 0)
+    if (dto.orderId && dto.orderId > 0) {
+      const existing = await this.invoiceRepo.findOne({
+        where: { orderId: dto.orderId },
+      });
 
-    if (existing) {
-      throw new ConflictException(`Invoice for order ${dto.orderId} already exists`);
+      if (existing) {
+        throw new ConflictException(`Invoice for order ${dto.orderId} already exists`);
+      }
     }
 
     const invoiceNumber = await this.generateInvoiceNumber();
 
+    // Parse dueDate - handle both string and Date
+    let dueDate: Date;
+    if (dto.dueDate) {
+      dueDate = typeof dto.dueDate === 'string' ? new Date(dto.dueDate) : dto.dueDate;
+    } else {
+      dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
+    }
+
     const invoice = await this.invoiceRepo.save(
       this.invoiceRepo.create({
         invoiceNumber,
-        orderId: dto.orderId,
+        orderId: dto.orderId || 0,
         orderNumber: dto.orderNumber,
         customerId: dto.customerId,
-        subtotal: dto.subtotal,
-        tax: dto.tax,
+        subtotal: dto.subtotal || 0,
+        tax: dto.tax || 0,
         shippingCost: dto.shippingCost || 0,
         discount: dto.discount || 0,
         totalAmount: dto.totalAmount,
         dueAmount: dto.totalAmount,
-        dueDate: dto.dueDate,
+        dueDate: dueDate,
         notes: dto.notes,
         status: 'draft',
       }),
@@ -106,8 +120,7 @@ export class BillingService {
       }),
     );
 
-     console.log('📤 Emitting INVOICE_CREATED event...');
-  
+    // Emit event (no verbose logging)
     this.kafka.emit(EventTopics.INVOICE_CREATED, {
       eventId: crypto.randomUUID(),
       eventType: EventTopics.INVOICE_CREATED,
@@ -126,30 +139,112 @@ export class BillingService {
       },
     });
 
-
-  console.log('✅ INVOICE_CREATED event emitted successfully');
-  console.log('📋 Event data:', {
-    invoiceId: invoice.id,
-    invoiceNumber: invoice.invoiceNumber,
-    orderId: invoice.orderId,
-  });
-  
     return invoice;
   }
 
-  async list(): Promise<Invoice[]> {
-    return this.invoiceRepo.find({
-      relations: ['items', 'payments'],
-      order: { createdAt: 'DESC' },
-    });
+  async list(options?: {
+    page?: number;
+    limit?: number;
+    includeCancelled?: boolean;
+  }): Promise<{ invoices: Invoice[]; total: number; page: number; limit: number; totalPages: number }> {
+    const page = options?.page || 1;
+    const limit = Math.min(options?.limit || 20, 100); // Max 100 per page
+    const skip = (page - 1) * limit;
+    const includeCancelled = options?.includeCancelled || false;
+
+    const queryBuilder = this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.items', 'items')
+      .leftJoinAndSelect('invoice.payments', 'payments');
+
+    // Exclude cancelled invoices by default
+    if (!includeCancelled) {
+      queryBuilder.andWhere('invoice.status != :cancelled', { cancelled: 'cancelled' });
+    }
+
+    queryBuilder
+      .orderBy('invoice.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [invoices, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      invoices,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  async listByCustomer(customerId: number): Promise<Invoice[]> {
-    return this.invoiceRepo.find({
-      where: { customerId },
-      relations: ['items', 'payments'],
-      order: { createdAt: 'DESC' },
-    });
+  async listByCustomer(customerId: number, options?: {
+    page?: number;
+    limit?: number;
+    includeCancelled?: boolean;
+  }): Promise<{ invoices: Invoice[]; total: number; page: number; limit: number; totalPages: number }> {
+    const page = options?.page || 1;
+    const limit = Math.min(options?.limit || 20, 100);
+    const skip = (page - 1) * limit;
+    const includeCancelled = options?.includeCancelled || false;
+
+    const queryBuilder = this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.items', 'items')
+      .leftJoinAndSelect('invoice.payments', 'payments')
+      .where('invoice.customerId = :customerId', { customerId });
+
+    if (!includeCancelled) {
+      queryBuilder.andWhere('invoice.status != :cancelled', { cancelled: 'cancelled' });
+    }
+
+    queryBuilder
+      .orderBy('invoice.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [invoices, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      invoices,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async listBySubscription(subscriptionId: number, options?: {
+    page?: number;
+    limit?: number;
+    includeCancelled?: boolean;
+  }): Promise<{ invoices: Invoice[]; total: number; page: number; limit: number; totalPages: number }> {
+    const page = options?.page || 1;
+    const limit = Math.min(options?.limit || 20, 100);
+    const skip = (page - 1) * limit;
+    const includeCancelled = options?.includeCancelled || false;
+
+    const queryBuilder = this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.items', 'items')
+      .leftJoinAndSelect('invoice.payments', 'payments')
+      .where('invoice.subscriptionId = :subscriptionId', { subscriptionId });
+
+    if (!includeCancelled) {
+      queryBuilder.andWhere('invoice.status != :cancelled', { cancelled: 'cancelled' });
+    }
+
+    queryBuilder
+      .orderBy('invoice.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [invoices, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      invoices,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getById(id: number): Promise<Invoice> {
@@ -227,7 +322,6 @@ export class BillingService {
       const invoice = await this.invoiceRepo.findOne({ where: { id: invoiceId } });
       
       if (!invoice) {
-        console.error(`❌ Invoice ${invoiceId} not found`);
         return;
       }
 
@@ -256,8 +350,6 @@ export class BillingService {
         }),
       );
 
-      console.log(`✅ Invoice ${invoiceId} status updated: ${previousStatus} → ${status}`);
-
       // Emit INVOICE_UPDATED event
       this.kafka.emit(EventTopics.INVOICE_UPDATED, {
         eventId: crypto.randomUUID(),
@@ -273,7 +365,6 @@ export class BillingService {
         },
       });
     } catch (error) {
-      console.error(`❌ Error updating invoice ${invoiceId} status:`, error);
       throw error;
     }
   }
@@ -283,8 +374,6 @@ export class BillingService {
    */
   async emitOrderCompleted(orderId: number, invoiceId: number): Promise<void> {
     try {
-      console.log(`📤 Emitting ORDER_COMPLETED event for order ${orderId}`);
-      
       this.kafka.emit(EventTopics.ORDER_COMPLETED, {
         eventId: crypto.randomUUID(),
         eventType: EventTopics.ORDER_COMPLETED,
@@ -296,10 +385,8 @@ export class BillingService {
           completedAt: new Date(),
         },
       });
-
-      console.log(`✅ ORDER_COMPLETED event emitted`);
     } catch (error) {
-      console.error(`❌ Error emitting ORDER_COMPLETED event:`, error);
+      // Silent fail
     }
   }
 
@@ -380,8 +467,7 @@ export class BillingService {
     // TODO: Implement retry payment logic with payment provider
     // This could integrate with payment gateway APIs
 
-    console.log(`🔄 Retry payment for invoice ${invoice.invoiceNumber}`);
-
+    // Retry logic placeholder
     return invoice;
   }
 
@@ -391,24 +477,35 @@ export class BillingService {
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
+    
+    // Add random suffix to prevent race condition duplicates
+    const randomSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const timestamp = Date.now().toString(36).toUpperCase();
 
     const latestInvoice = await this.invoiceRepo
       .createQueryBuilder('invoice')
       .where('invoice.invoiceNumber LIKE :pattern', {
         pattern: `INV-${year}-${month}-%`,
       })
-      .orderBy('invoice.invoiceNumber', 'DESC')
+      .orderBy('invoice.id', 'DESC')
       .take(1)
       .getOne();
 
     let sequence = 1;
     if (latestInvoice) {
-      const lastSequence = parseInt(latestInvoice.invoiceNumber.split('-')[3], 10);
-      sequence = lastSequence + 1;
+      // Extract sequence from format INV-YYYY-MM-XXXXX-RANDOM
+      const parts = latestInvoice.invoiceNumber.split('-');
+      if (parts.length >= 4) {
+        const lastSequence = parseInt(parts[3], 10);
+        if (!isNaN(lastSequence)) {
+          sequence = lastSequence + 1;
+        }
+      }
     }
 
     const sequenceStr = String(sequence).padStart(5, '0');
-    return `INV-${year}-${month}-${sequenceStr}`;
+    // Format: INV-2025-11-00001-A1B2C3 (with random suffix to prevent duplicates)
+    return `INV-${year}-${month}-${sequenceStr}-${randomSuffix}`;
   }
 
   async getOverdueInvoices(): Promise<Invoice[]> {
@@ -442,8 +539,6 @@ export class BillingService {
         });
       }
     }
-
-    console.log(`⚠️ Marked ${overdueInvoices.length} invoices as overdue`);
   }
 
   async getInvoiceStats(customerId: number): Promise<any> {
@@ -480,8 +575,6 @@ export class BillingService {
     periodEnd: Date;
     dueDate: Date;
   }): Promise<Invoice> {
-    console.log('💰 [BillingService.createRecurringInvoice] Creating recurring invoice for subscription', data.subscriptionId);
-
     // Check if invoice already exists for this billing period
     const existing = await this.invoiceRepo.findOne({
       where: {
@@ -492,7 +585,6 @@ export class BillingService {
     });
 
     if (existing) {
-      console.log('⚠️ Invoice already exists for this period:', existing.invoiceNumber);
       return existing;
     }
 
@@ -539,8 +631,6 @@ export class BillingService {
       }),
     );
 
-    console.log('📤 Emitting INVOICE_CREATED event for subscription invoice...');
-
     this.kafka.emit(EventTopics.INVOICE_CREATED, {
       eventId: crypto.randomUUID(),
       eventType: EventTopics.INVOICE_CREATED,
@@ -582,8 +672,6 @@ export class BillingService {
     businessModel?: string,
     addons?: Array<{ addonId: string; name: string; price: number }>,
   ): Promise<Invoice> {
-    console.log(`💡 Creating invoice with STRATEGY pattern (model: ${businessModel || 'auto'})`);
-
     // Check if invoice already exists
     const existing = await this.invoiceRepo.findOne({
       where: { orderId: dto.orderId },
@@ -608,13 +696,6 @@ export class BillingService {
         billingPeriod: dto.billingPeriod as any,
         isFreeTier: dto.isFreeTier,
       },
-    });
-
-    console.log(`📊 Billing calculation result:`, {
-      subtotal: billingResult.subtotal,
-      tax: billingResult.tax,
-      total: billingResult.totalAmount,
-      mode: billingResult.billingMode,
     });
 
     // Generate invoice number
@@ -669,8 +750,6 @@ export class BillingService {
       }),
     );
 
-    console.log('📤 Emitting INVOICE_CREATED event...');
-
     this.kafka.emit(EventTopics.INVOICE_CREATED, {
       eventId: crypto.randomUUID(),
       eventType: EventTopics.INVOICE_CREATED,
@@ -691,9 +770,6 @@ export class BillingService {
       },
     });
 
-    console.log('✅ Invoice created successfully with strategy pattern');
-
-    console.log('✅ Recurring invoice created:', invoice.invoiceNumber);
     return invoice;
   }
 }

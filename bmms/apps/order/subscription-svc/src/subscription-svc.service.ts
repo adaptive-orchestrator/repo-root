@@ -94,9 +94,18 @@ export class subscriptionSvcService implements OnModuleInit {
     });
 
     if (existingSubscription) {
-      throw new BadRequestException(
-        `Customer ${dto.customerId} already has an ${existingSubscription.status} subscription (ID: ${existingSubscription.id})`
-      );
+      // If already has ACTIVE subscription, throw error
+      if (existingSubscription.status === SubscriptionStatus.ACTIVE) {
+        throw new BadRequestException(
+          `Customer ${dto.customerId} already has an active subscription (ID: ${existingSubscription.id})`
+        );
+      }
+      
+      // If has PENDING subscription, return it so user can continue checkout
+      if (existingSubscription.status === SubscriptionStatus.PENDING) {
+        console.log(`📋 [SubscriptionSvc.create] Customer ${dto.customerId} already has pending subscription ${existingSubscription.id}, returning existing`);
+        return existingSubscription;
+      }
     }
 
     // 4. Calculate billing period

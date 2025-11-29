@@ -5,6 +5,7 @@ import { Payment } from './entities/payment.entity';
 import { PaymentHistory } from './entities/payment-history.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
+import { SubscriptionPaymentDto, SubscriptionPaymentResponseDto } from './dto/subscription-payment.dto';
 import { ClientKafka } from '@nestjs/microservices';
 import * as crypto from 'crypto';
 
@@ -124,6 +125,105 @@ export class PaymentService {
     } catch (error) {
       this.logger.error(`❌ Error confirming payment:`, error);
       throw error;
+    }
+  }
+
+  // =================== SUBSCRIPTION PAYMENT ===================
+  /**
+   * Xử lý thanh toán subscription
+   * - Tạo payment record
+   * - Mock thanh toán (sau này thay bằng VNPay/Momo)
+   * - Emit event payment.success để billing và subscription service xử lý
+   */
+  async processSubscriptionPayment(dto: SubscriptionPaymentDto): Promise<SubscriptionPaymentResponseDto> {
+    try {
+      this.logger.log(`💳 Processing subscription payment for subscription ${dto.subscriptionId}`);
+      this.logger.log(`   Customer: ${dto.customerId}`);
+      this.logger.log(`   Amount: ${dto.amount}`);
+      this.logger.log(`   Plan: ${dto.planName || 'N/A'}`);
+
+      // Generate transaction ID (mock - sau này sẽ từ VNPay/Momo)
+      const transactionId = `SUB-TXN-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+      
+      // Generate invoice number for subscription
+      const invoiceNumber = `INV-SUB-${Date.now()}`;
+
+      // Create payment record
+      const payment = this.paymentRepository.create({
+        invoiceId: 0, // Will be updated when billing creates invoice
+        invoiceNumber: invoiceNumber,
+        customerId: dto.customerId,
+        totalAmount: dto.amount,
+        paidAmount: dto.amount,
+        status: 'completed',
+        transactionId: transactionId,
+        createdAt: new Date(),
+        paidAt: new Date(),
+      });
+
+      const savedPayment = await this.paymentRepository.save(payment);
+      this.logger.log(`✅ Payment record created: ${savedPayment.id}`);
+
+      // Log payment history
+      await this.logPaymentHistory(
+        savedPayment.id,
+        0, // No invoice ID yet
+        'success',
+        `Subscription payment for ${dto.planName || 'subscription'} - Transaction: ${transactionId}`,
+      );
+
+      // ⭐ Emit subscription.payment.success event
+      // Billing và Subscription service sẽ lắng nghe event này
+      this.logger.log(`📤 Emitting subscription.payment.success event...`);
+      
+      this.kafkaClient.emit('subscription.payment.success', {
+        eventId: crypto.randomUUID(),
+        eventType: 'subscription.payment.success',
+        timestamp: new Date(),
+        source: 'payment-svc',
+        data: {
+          paymentId: savedPayment.id,
+          subscriptionId: dto.subscriptionId,
+          customerId: dto.customerId,
+          amount: dto.amount,
+          currency: dto.currency || 'VND',
+          method: dto.paymentMethod || 'CREDIT_CARD',
+          transactionId: transactionId,
+          planName: dto.planName,
+          paidAt: new Date(),
+        },
+      });
+
+      this.logger.log(`✅ Subscription payment completed successfully`);
+
+      return {
+        success: true,
+        message: 'Thanh toán thành công',
+        transactionId: transactionId,
+        paymentId: savedPayment.id,
+        invoiceId: 0, // Will be created by billing service
+        paidAt: new Date(),
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Error processing subscription payment:`, error);
+      
+      // Emit failure event
+      this.kafkaClient.emit('subscription.payment.failed', {
+        eventId: crypto.randomUUID(),
+        eventType: 'subscription.payment.failed',
+        timestamp: new Date(),
+        source: 'payment-svc',
+        data: {
+          subscriptionId: dto.subscriptionId,
+          customerId: dto.customerId,
+          amount: dto.amount,
+          reason: error.message || 'Payment processing failed',
+          canRetry: true,
+        },
+      });
+
+      throw new BadRequestException(error.message || 'Thanh toán thất bại');
     }
   }
 
