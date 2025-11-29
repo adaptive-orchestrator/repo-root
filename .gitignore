@@ -18,7 +18,9 @@ lerna-debug.log*
 .env.development
 .env.test
 .env.production
+docker-retail.env
 
 # temp directory
 .temp
 .tmp
+.claude

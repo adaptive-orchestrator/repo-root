@@ -1,0 +1,175 @@
+name: Build and Push Docker Images to ECR
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - containerization
+    paths:
+      - 'bmms/apps/**'
+      - 'bmms/libs/**'
+      - 'bmms/Dockerfile.*'
+      - 'bmms/package*.json'
+      - '.github/workflows/build-and-push.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'bmms/apps/**'
+      - 'bmms/libs/**'
+      - 'bmms/Dockerfile.*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      services:
+        description: 'Services to build (comma-separated, or "all")'
+        required: true
+        default: 'all'
+
+env:
+  AWS_REGION: ap-southeast-1
+  PROJECT_NAME: bmms
+
+jobs:
+  prepare:
+    name: Prepare build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up build matrix
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ github.event.inputs.services }}" != "all" ]; then
+            # Build specific services
+            SERVICES="${{ github.event.inputs.services }}"
+            MATRIX_JSON=$(echo $SERVICES | jq -R 'split(",") | map({service: ., dockerfile: ("Dockerfile." + .)})')
+          else
+            # Build all services from apps/ directory
+            MATRIX_JSON='[
+              {"service": "api-gateway", "dockerfile": "Dockerfile.api-gateway"},
+              {"service": "auth-svc", "dockerfile": "Dockerfile.auth-svc"},
+              {"service": "billing-svc", "dockerfile": "Dockerfile.billing-svc"},
+              {"service": "catalogue-svc", "dockerfile": "Dockerfile.catalogue-svc"},
+              {"service": "code-indexer", "dockerfile": "Dockerfile.code-indexer"},
+              {"service": "crm-orchestrator", "dockerfile": "Dockerfile.crm-orchestrator"},
+              {"service": "customer-svc", "dockerfile": "Dockerfile.customer-svc"},
+              {"service": "inventory-svc", "dockerfile": "Dockerfile.inventory-svc"},
+              {"service": "k8s-generator", "dockerfile": "Dockerfile.k8s-generator"},
+              {"service": "llm-orchestrator", "dockerfile": "Dockerfile.llm-orchestrator"},
+              {"service": "order-svc", "dockerfile": "Dockerfile.order-svc"},
+              {"service": "payment-svc", "dockerfile": "Dockerfile.payment-svc"},
+              {"service": "pricing-engine", "dockerfile": "Dockerfile.pricing-engine"},
+              {"service": "promotion-svc", "dockerfile": "Dockerfile.promotion-svc"},
+              {"service": "subscription-svc", "dockerfile": "Dockerfile.subscription-svc"}
+            ]'
+          fi
+          echo "matrix=$(echo $MATRIX_JSON | jq -c .)" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    name: Build and push ${{ matrix.service }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Debug GitHub context
+        run: |
+          echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+          echo "GITHUB_REF=$GITHUB_REF"
+
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ needs.prepare.outputs.environment }}-GitHubActionsRole
+          role-session-name: GitHubActions-BuildPush-${{ matrix.service }}
+          aws-region: ${{ env.AWS_REGION }}
+
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}/${{ needs.prepare.outputs.environment }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./bmms
+          file: ./bmms/${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            ENVIRONMENT=${{ needs.prepare.outputs.environment }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} 
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            TOKEN_EXPIRE_TIME=${{ secrets.TOKEN_EXPIRE_TIME }}
+      - name: Output image URI
+        run: |
+          echo "Image pushed: ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}/${{ needs.prepare.outputs.environment }}/${{ matrix.service }}:${{ github.sha }}"
+
+  notify:
+    name: Notify build completion
+    needs: [prepare, build-and-push]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check build status
+        run: |
+          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
+            echo "All images built and pushed successfully"
+          else
+            echo "Some builds failed"
+            exit 1
+          fi
