@@ -12,6 +12,8 @@ export class InventoryController {
       data.productId,
       data.quantity || 0,
       data.reorderLevel || 10,
+      data.warehouseLocation,
+      data.maxStock,
     );
     return { inventory, message: 'Inventory created successfully' };
   }

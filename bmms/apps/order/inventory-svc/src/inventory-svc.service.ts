@@ -90,6 +90,8 @@ export class InventoryService implements OnModuleInit {
     productId: number,
     initialQuantity: number = 0,
     reorderLevel: number = 10,
+    warehouseLocation?: string,
+    maxStock?: number,
   ): Promise<Inventory> {
     // ✅ Validate product exists in catalogue
     await this.validateProduct(productId);
@@ -99,6 +101,8 @@ export class InventoryService implements OnModuleInit {
       quantity: initialQuantity,  // ✅ Total quantity
       reserved: 0,                // ✅ Nothing reserved yet
       reorderLevel,
+      warehouseLocation,
+      maxStock: maxStock || 1000,
       isActive: true,
     });
 
