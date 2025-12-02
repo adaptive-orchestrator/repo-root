@@ -93,6 +93,16 @@ export class InventoryService implements OnModuleInit {
     warehouseLocation?: string,
     maxStock?: number,
   ): Promise<Inventory> {
+    // ✅ Check if inventory already exists
+    const existingInventory = await this.inventoryRepo.findOne({
+      where: { productId }
+    });
+
+    if (existingInventory) {
+      debug.log(`⚠️ Inventory already exists for productId: ${productId}, skipping creation`);
+      return existingInventory;
+    }
+
     // ✅ Validate product exists in catalogue
     await this.validateProduct(productId);
 
@@ -106,7 +116,17 @@ export class InventoryService implements OnModuleInit {
       isActive: true,
     });
 
-    return this.inventoryRepo.save(inventory);
+    try {
+      return await this.inventoryRepo.save(inventory);
+    } catch (error) {
+      // Handle duplicate error gracefully (race condition edge case)
+      if (error.code === 'ER_DUP_ENTRY') {
+        debug.warn(`⚠️ Duplicate inventory detected for productId: ${productId} (race condition), fetching existing`);
+        const existing = await this.inventoryRepo.findOne({ where: { productId } });
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   /**
