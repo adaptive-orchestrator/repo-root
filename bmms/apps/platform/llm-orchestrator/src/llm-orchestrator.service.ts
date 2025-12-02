@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { LlmChatResponse } from './llm-orchestrator/llm-orchestrator.interface';
 import { CodeSearchService } from './service/code-search.service';
 import { LlmOutputValidator } from './validators/llm-output.validator';
-import { K8sIntegrationService } from './service/k8s-integration.service';
+import { HelmIntegrationService } from './service/helm-integration.service';
 import { debug } from '@bmms/common';
 
 const LLMReplySchema = z.object({
@@ -180,7 +180,7 @@ export class LlmOrchestratorService {
   constructor(
     private codeSearchService: CodeSearchService,
     private validator: LlmOutputValidator,
-    private k8sIntegrationService: K8sIntegrationService,
+    private helmIntegrationService: HelmIntegrationService,
   ) {
     this.geminiClient = new GoogleGenerativeAI(
       process.env.GEMINI_API_KEY || '',
@@ -282,22 +282,30 @@ export class LlmOrchestratorService {
       metadata: validated.metadata,
     };
 
-    // 🚀 AUTO-TRIGGER K8S DEPLOYMENT VIA KAFKA
-    // Automatically publish deployment event after successful LLM processing
+    // 🚀 AUTO-TRIGGER HELM DEPLOYMENT
+    // Automatically generate changeset and trigger Helm deployment after successful LLM processing
     try {
       const autoDeployEnabled = process.env.AUTO_DEPLOY_ENABLED === 'true';
       const dryRunDefault = process.env.DEFAULT_DRY_RUN !== 'false'; // Default: true
       
       if (autoDeployEnabled || dryRunDefault) {
-        // Trigger deployment in background (don't wait)
-        this.k8sIntegrationService.triggerDeployment(response, dryRunDefault)
+        // Trigger Helm deployment in background (don't wait)
+        this.helmIntegrationService.triggerDeployment(response, dryRunDefault)
+          .then((result) => {
+            if (result.success) {
+              debug.log('[LLM] Helm changeset generated:', result.changesetPath);
+              if (result.deployed) {
+                debug.log('[LLM] Helm deployment completed successfully');
+              }
+            }
+          })
           .catch(err => {
-            debug.error('[LLM] Failed to trigger K8s deployment:', err.message);
+            debug.error('[LLM] Failed to trigger Helm deployment:', err.message);
           });
       }
     } catch (error) {
       // Don't fail the LLM request if deployment trigger fails
-      debug.error('[LLM] Error triggering deployment:', error instanceof Error ? error.message : String(error));
+      debug.error('[LLM] Error triggering Helm deployment:', error instanceof Error ? error.message : String(error));
     }
 
     return response;
@@ -313,7 +321,8 @@ export class LlmOrchestratorService {
     lang: string,
     codeContext: string = '',
   ): Promise<string> {
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash'; // (Gemini 2.5 Flash chưa có, có thể ý bạn là 1.5)
+    // Use LLM_MODEL from env, default to gemini-2.0-flash-exp
+    const modelName = process.env.LLM_MODEL || process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
     
     // 1. Cấu hình model với System Prompt
     const model = this.geminiClient.getGenerativeModel({
@@ -393,7 +402,8 @@ Always respond in JSON format:
    * Generic chat method for Gemini
    */
   private async callGeminiChat(prompt: string, context: any[], systemPrompt: string): Promise<string> {
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    // Use LLM_MODEL from env, default to gemini-2.0-flash-exp
+    const modelName = process.env.LLM_MODEL || process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
     
     const model = this.geminiClient.getGenerativeModel({
       model: modelName,
@@ -410,6 +420,148 @@ Always respond in JSON format:
     const result = await chat.sendMessage(prompt);
 
     return result.response.text() || '';
+  }
+
+  // -------------------------------
+  // Business Model Recommendation
+  // -------------------------------
+  
+  /**
+   * Tư vấn mô hình kinh doanh phù hợp dựa trên mô tả của người dùng
+   */
+  async recommendBusinessModel(request: {
+    business_description: string;
+    target_audience?: string;
+    revenue_preference?: string;
+    lang?: string;
+  }): Promise<{
+    greeting: string;
+    recommendation_intro: string;
+    recommended_model: string;
+    why_this_fits: string;
+    how_it_works: string;
+    next_steps: string[];
+    alternatives_intro?: string;
+    alternatives?: Array<{ model: string; brief_reason: string }>;
+    closing?: string;
+  }> {
+    const lang = request.lang || 'vi';
+    
+    const systemPrompt = `Bạn là một chuyên gia tư vấn kinh doanh thân thiện và nhiệt tình. Nhiệm vụ của bạn là giúp người dùng (có thể không biết gì về công nghệ hay mô hình kinh doanh) chọn được cách vận hành phù hợp nhất.
+
+**CÁCH NÓI CHUYỆN:**
+- Nói như đang tư vấn trực tiếp cho một người bạn
+- Dùng ngôn ngữ đơn giản, tránh thuật ngữ chuyên môn  
+- Giải thích bằng ví dụ thực tế dễ hiểu (Netflix, Shopee, phòng gym...)
+- Thể hiện sự quan tâm và động viên
+
+**CÁC LỰA CHỌN CÓ SẴN:**
+
+1. **retail** - "Bán hàng truyền thống" ⭐ CHỌN NÀY KHI BÁN SẢN PHẨM VẬT LÝ
+   - Khách mua → Thanh toán 1 lần → Nhận hàng → Xong
+   - Giống như: Shopee, Tiki, cửa hàng điện tử, cửa hàng quần áo
+   - PHÙ HỢP VỚI: Bán linh kiện, thiết bị, quần áo, thực phẩm, đồ gia dụng, sản phẩm handmade, v.v.
+   - DẤU HIỆU NHẬN BIẾT: người dùng nói "bán", "kinh doanh", "cửa hàng", "sản phẩm", "hàng hóa", "ship", "giao hàng"
+   
+2. **subscription** - "Thu phí định kỳ" ⭐ CHỌN KHI CUNG CẤP DỊCH VỤ SỐ/NỘI DUNG
+   - Khách đăng ký → Trả tiền hàng tháng/năm → Được sử dụng dịch vụ LIÊN TỤC
+   - Giống như: Netflix, Spotify, phòng gym, SaaS, khóa học online membership
+   - PHÙ HỢP VỚI: Streaming, phần mềm, nội dung số, dịch vụ cloud, membership
+   - DẤU HIỆU NHẬN BIẾT: "hàng tháng", "định kỳ", "membership", "thành viên", "truy cập không giới hạn"
+   
+3. **freemium** - "Miễn phí cơ bản, trả tiền nâng cấp"
+   - Khách dùng free → Thích → Trả tiền để có thêm tính năng
+   - Giống như: Canva, Notion, game mobile
+   - PHÙ HỢP VỚI: Ứng dụng, công cụ online, game
+   - DẤU HIỆU NHẬN BIẾT: "miễn phí", "free", "nâng cấp", "premium features"
+   
+4. **multi** - "Kết hợp nhiều cách"
+   - Vừa bán hàng, vừa có gói membership, vừa có tính năng premium
+   - Giống như: Amazon (vừa bán hàng, vừa có Prime)
+   - PHÙ HỢP VỚI: Doanh nghiệp lớn muốn đa dạng hóa nguồn thu
+
+**QUAN TRỌNG - QUY TẮC CHỌN:**
+- Nếu người dùng nói về BÁN SẢN PHẨM VẬT LÝ (linh kiện, điện tử, quần áo, đồ ăn, v.v.) → LUÔN chọn **retail**
+- Chỉ chọn **subscription** khi họ nói rõ về DỊCH VỤ SỐ hoặc NỘI DUNG định kỳ
+- Nếu không chắc chắn và sản phẩm là vật lý → mặc định chọn **retail**
+
+**⚠️ BẮT BUỘC: PHẢI TRẢ VỀ TẤT CẢ 9 TRƯỜNG DƯỚI ĐÂY. KHÔNG ĐƯỢC BỎ QUA TRƯỜNG NÀO!**
+
+**OUTPUT FORMAT (CHỈ JSON, KHÔNG markdown, KHÔNG code block):**
+{
+  "greeting": "[BẮT BUỘC] Lời chào thân thiện có emoji",
+  "recommendation_intro": "[BẮT BUỘC] Giới thiệu ngắn về đề xuất, VD: 'Dựa vào mô tả của bạn, mình nghĩ cách phù hợp nhất là:'",
+  "recommended_model": "[BẮT BUỘC] Chỉ 1 trong 4 giá trị: retail | subscription | freemium | multi",
+  "why_this_fits": "[BẮT BUỘC] Giải thích 2-3 lý do TẠI SAO cách này phù hợp với mô tả của họ",
+  "how_it_works": "[BẮT BUỘC] Giải thích CÁCH HOẠT ĐỘNG đơn giản với ví dụ thực tế",
+  "next_steps": "[BẮT BUỘC] Mảng 3 bước tiếp theo, VD: ['Bấm chọn mô hình này', 'Thêm sản phẩm', 'Bắt đầu bán']",
+  "alternatives_intro": "[BẮT BUỘC] VD: 'Nếu bạn chưa chắc chắn, đây là lựa chọn khác:'",
+  "alternatives": "[BẮT BUỘC] Mảng 2 lựa chọn khác: [{'model': '...', 'brief_reason': '1 dòng mô tả'}]",
+  "closing": "[BẮT BUỘC] Lời kết động viên"
+}
+
+**VÍ DỤ RESPONSE HOÀN CHỈNH:**
+{"greeting":"Chào bạn! 😊","recommendation_intro":"Dựa vào việc bạn muốn bán linh kiện điện tử, mình đề xuất:","recommended_model":"retail","why_this_fits":"1. Linh kiện điện tử là sản phẩm vật lý, khách mua 1 lần và nhận hàng. 2. Giống như các shop Shopee/Tiki bán linh kiện - mô hình đã chứng minh hiệu quả. 3. Dễ quản lý tồn kho và định giá theo từng sản phẩm.","how_it_works":"Rất đơn giản: Bạn đăng linh kiện lên → Khách xem và đặt mua → Thanh toán → Bạn giao hàng. Giống như mở shop trên Shopee vậy!","next_steps":["Bấm chọn mô hình 'Bán hàng truyền thống'","Thêm các linh kiện của bạn vào kho","Bắt đầu nhận đơn hàng đầu tiên!"],"alternatives_intro":"Nếu sau này bạn muốn mở rộng:","alternatives":[{"model":"multi","brief_reason":"Kết hợp thêm gói membership VIP cho khách thường xuyên"},{"model":"subscription","brief_reason":"Nếu bạn có dịch vụ sửa chữa định kỳ"}],"closing":"Bắt đầu với retail là lựa chọn an toàn nhất cho việc bán linh kiện. Chúc bạn kinh doanh thành công! 🚀"}`;
+
+    const userPrompt = `Người dùng cần tư vấn:
+
+"${request.business_description}"
+${request.target_audience ? `\nKhách hàng họ nhắm đến: "${request.target_audience}"` : ''}
+${request.revenue_preference ? `\nHọ mong muốn về thu nhập: "${request.revenue_preference}"` : ''}
+
+Hãy tư vấn thật thân thiện, dễ hiểu bằng ${lang === 'vi' ? 'tiếng Việt' : 'English'}. Giải thích như đang nói chuyện với một người bạn không biết gì về kinh doanh online. Nhớ trả lời đúng format JSON.`;
+
+    try {
+      const responseText = await this.callGeminiChat(userPrompt, [], systemPrompt);
+      
+      // Log raw response from Gemini
+      console.log('[Recommend Model] Raw Gemini response:', responseText);
+      
+      // Clean and parse response
+      let cleaned = responseText.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
+      }
+      
+      console.log('[Recommend Model] Cleaned response:', cleaned);
+      
+      const parsed = JSON.parse(cleaned);
+      
+      console.log('[Recommend Model] Parsed JSON keys:', Object.keys(parsed));
+      console.log('[Recommend Model] Parsed JSON:', JSON.stringify(parsed, null, 2));
+      
+      const result = {
+        greeting: parsed.greeting || 'Chào bạn! 😊',
+        recommendation_intro: parsed.recommendation_intro || 'Dựa vào mô tả của bạn, mình đề xuất:',
+        recommended_model: parsed.recommended_model || 'retail',
+        why_this_fits: parsed.why_this_fits || 'Cách này sẽ phù hợp với nhu cầu của bạn.',
+        how_it_works: parsed.how_it_works || 'Khách hàng sẽ mua sản phẩm/dịch vụ của bạn một cách dễ dàng.',
+        next_steps: parsed.next_steps || ['Bấm nút bên dưới để bắt đầu'],
+        alternatives_intro: parsed.alternatives_intro || 'Nếu bạn chưa chắc, đây là một số lựa chọn khác:',
+        alternatives: parsed.alternatives || [],
+        closing: parsed.closing || 'Chúc bạn kinh doanh thành công! 🚀',
+      };
+      
+      console.log('[Recommend Model] Final result:', JSON.stringify(result, null, 2));
+      
+      return result;
+    } catch (error) {
+      console.log('[Recommend Model] Error:', error);
+      console.log('[Recommend Model] Error details:', (error as Error).message);
+      return {
+        greeting: 'Chào bạn! 😊',
+        recommendation_intro: 'Mình đã xem qua mô tả của bạn và đây là đề xuất:',
+        recommended_model: 'retail',
+        why_this_fits: 'Xin lỗi, mình không thể phân tích chi tiết được. Nhưng cách "Bán hàng truyền thống" là lựa chọn an toàn và dễ bắt đầu nhất.',
+        how_it_works: 'Bạn đăng sản phẩm → Khách hàng xem và đặt mua → Thanh toán → Giao hàng. Đơn giản vậy thôi!',
+        next_steps: [
+          'Bấm nút bên dưới để chọn cách này',
+          'Thêm sản phẩm/dịch vụ của bạn vào hệ thống',
+          'Bắt đầu bán hàng!'
+        ],
+        closing: 'Bạn có thể thay đổi sang cách khác sau nếu cần nhé!',
+      };
+    }
   }
 }
 
