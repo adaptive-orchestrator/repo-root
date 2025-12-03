@@ -36,7 +36,7 @@ export class FreemiumPromotionStrategy implements IPromotionStrategy {
   }
 
   async validatePromotion(params: PromotionValidationParams): Promise<PromotionValidationResult> {
-    this.logger.log(`🎁 Validating FREEMIUM promotion: ${params.promotionCode}`);
+    this.logger.log(`[Promotion] Validating FREEMIUM promotion: ${params.promotionCode}`);
 
     const promotion = await this.promotionRepo.findOne({
       where: { code: params.promotionCode.toUpperCase() },

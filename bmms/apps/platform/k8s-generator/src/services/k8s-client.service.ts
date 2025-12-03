@@ -27,11 +27,11 @@ export class K8sClientService implements OnModuleInit {
     if (process.env.KUBERNETES_SERVICE_HOST) {
       // Running inside K8s cluster
       this.kc.loadFromCluster();
-      this.logger.log('📦 Running inside K8s cluster');
+      this.logger.log('[K8sGen] Running inside K8s cluster');
     } else {
       // Running locally, load from ~/.kube/config
       this.kc.loadFromDefault();
-      this.logger.log('💻 Running locally with kubeconfig');
+      this.logger.log('[K8sGen] Running locally with kubeconfig');
     }
 
     this.k8sApi = this.kc.makeApiClient(this.k8s.AppsV1Api);
@@ -59,7 +59,7 @@ export class K8sClientService implements OnModuleInit {
           namespace,
           body: deployment,
         });
-        this.logger.log(`✅ Updated deployment: ${namespace}/${name}`);
+        this.logger.log(`[K8sGen] Updated deployment: ${namespace}/${name}`);
         return response.body;
       } catch (error: any) {
         // Create new deployment
@@ -67,7 +67,7 @@ export class K8sClientService implements OnModuleInit {
           namespace,
           body: deployment,
         });
-        this.logger.log(`✅ Created deployment: ${namespace}/${name}`);
+        this.logger.log(`[K8sGen] Created deployment: ${namespace}/${name}`);
         return response.body;
       }
     } catch (error: any) {
@@ -97,7 +97,7 @@ export class K8sClientService implements OnModuleInit {
           namespace,
           body: service,
         });
-        this.logger.log(`✅ Updated service: ${namespace}/${name}`);
+        this.logger.log(`[K8sGen] Updated service: ${namespace}/${name}`);
         return response.body;
       } catch (error: any) {
         // Create new service
@@ -105,7 +105,7 @@ export class K8sClientService implements OnModuleInit {
           namespace,
           body: service,
         });
-        this.logger.log(`✅ Created service: ${namespace}/${name}`);
+        this.logger.log(`[K8sGen] Created service: ${namespace}/${name}`);
         return response.body;
       }
     } catch (error: any) {
@@ -139,7 +139,7 @@ export class K8sClientService implements OnModuleInit {
         body: existing.body,
       });
       
-      this.logger.log(`✅ Updated ConfigMap: ${namespace}/${configMapName}`);
+      this.logger.log(`[K8sGen] Updated ConfigMap: ${namespace}/${configMapName}`);
       return updatedData;
     } catch (error: any) {
       this.logger.error(`Failed to update ConfigMap: ${error.message}`);
@@ -194,7 +194,7 @@ export class K8sClientService implements OnModuleInit {
   async deleteDeployment(namespace: string, name: string) {
     try {
       await this.k8sApi.deleteNamespacedDeployment({ name, namespace });
-      this.logger.log(`✅ Deleted deployment: ${namespace}/${name}`);
+      this.logger.log(`[K8sGen] Deleted deployment: ${namespace}/${name}`);
       return { deleted: true };
     } catch (error: any) {
       this.logger.error(`Failed to delete deployment: ${error.message}`);

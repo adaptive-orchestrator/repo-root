@@ -7,7 +7,7 @@ export class KafkaConsumerService {
   private readonly logger = new Logger(KafkaConsumerService.name);
 
   constructor(private k8sGeneratorService: K8sGeneratorService) {
-    this.logger.log('✅ Kafka consumer service initialized');
+    this.logger.log('[K8sGen] Kafka consumer service initialized');
   }
 
   /**
@@ -23,7 +23,7 @@ export class KafkaConsumerService {
     const eventId = eventData.eventId || 'unknown';
 
     try {
-      this.logger.log(`📨 Received event: ${eventId} (partition: ${partition}, offset: ${offset})`);
+      this.logger.log(`[K8sGen] Received event: ${eventId} (partition: ${partition}, offset: ${offset})`);
       this.logger.log(`   Services: ${eventData.changeset?.impacted_services?.join(', ') || 'none'}`);
 
       // Convert event to DTO
@@ -40,11 +40,11 @@ export class KafkaConsumerService {
       // Process deployment
       const result = await this.k8sGeneratorService.generateAndApply(dto, dryRun);
 
-      this.logger.log(`✅ Event ${eventId} processed successfully`);
+      this.logger.log(`[K8sGen] Event ${eventId} processed successfully`);
       this.logger.log(`   Results: ${result.results.length} services ${dryRun ? 'generated' : 'deployed'}`);
 
     } catch (error: any) {
-      this.logger.error(`❌ Failed to process event ${eventId}: ${error.message}`);
+      this.logger.error(`[ERROR] Failed to process event ${eventId}: ${error.message}`);
       // Note: Do NOT throw error here to avoid infinite retry loop
       // Consider implementing dead-letter queue for failed messages
     }

@@ -35,7 +35,7 @@ export class K8sIntegrationService {
    */
   async triggerDeployment(changeset: any, dryRun = false): Promise<any> {
     if (!this.autoDeployEnabled && !dryRun) {
-      this.logger.log('⚠️  Auto-deploy is disabled');
+      this.logger.log('[WARNING] Auto-deploy is disabled');
       return { deployed: false, reason: 'Auto-deploy disabled' };
     }
 
@@ -55,7 +55,7 @@ export class K8sIntegrationService {
     try {
       const mode = dryRun ? 'DRY-RUN (YAML only)' : 'DEPLOY';
       this.logger.log(
-        `🚀 [${mode}] Publishing K8s deployment event for services: ${changeset.changeset.impacted_services.join(', ')}`,
+        `[LLM] [${mode}] Publishing K8s deployment event for services: ${changeset.changeset.impacted_services.join(', ')}`,
       );
 
       const eventId = randomUUID();
@@ -72,8 +72,8 @@ export class K8sIntegrationService {
       });
 
       const message = dryRun
-        ? '✅ Deployment event published (YAML generation)'
-        : '✅ Deployment event published (will be processed by K8s Generator)';
+        ? '[LLM] Deployment event published (YAML generation)'
+        : '[LLM] Deployment event published (will be processed by K8s Generator)';
       this.logger.log(message);
 
       return {
@@ -84,7 +84,7 @@ export class K8sIntegrationService {
         message: 'Event published to Kafka. K8s Generator will process it.',
       };
     } catch (error: any) {
-      this.logger.error(`❌ Failed to publish deployment event: ${error.message}`);
+      this.logger.error(`[ERROR] Failed to publish deployment event: ${error.message}`);
       return {
         deployed: false,
         eventPublished: false,
@@ -100,7 +100,7 @@ export class K8sIntegrationService {
     try {
       const mode = dryRun ? 'DRY-RUN (YAML only)' : 'DEPLOY';
       this.logger.log(
-        `🚀 [${mode}] Triggering K8s deployment for services: ${changeset.changeset.impacted_services.join(', ')}`,
+        `[LLM] [${mode}] Triggering K8s deployment for services: ${changeset.changeset.impacted_services.join(', ')}`,
       );
 
       const url = `${this.k8sGeneratorUrl}/k8s/generate-deployment${dryRun ? '?dryRun=true' : ''}`;
@@ -125,8 +125,8 @@ export class K8sIntegrationService {
 
       const result = await response.json();
       const message = dryRun
-        ? '✅ YAML files generated successfully'
-        : '✅ Deployment triggered successfully';
+        ? '[LLM] YAML files generated successfully'
+        : '[LLM] Deployment triggered successfully';
       this.logger.log(message);
 
       return {
@@ -135,7 +135,7 @@ export class K8sIntegrationService {
         result,
       };
     } catch (error: any) {
-      this.logger.error(`❌ Failed to trigger deployment: ${error.message}`);
+      this.logger.error(`[ERROR] Failed to trigger deployment: ${error.message}`);
       return {
         deployed: false,
         error: error.message,

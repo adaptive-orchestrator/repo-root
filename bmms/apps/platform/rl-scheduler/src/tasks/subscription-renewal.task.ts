@@ -46,7 +46,7 @@ export class SubscriptionRenewalTask implements OnModuleInit {
     // Run overdue invoice check every hour
     this.scheduleEvery(60 * 60 * 1000, () => this.handleOverdueInvoices());
 
-    this.logger.log('✅ All scheduled tasks started');
+    this.logger.log('[RlScheduler] All scheduled tasks started');
   }
 
   private scheduleDaily(hour: number, minute: number, callback: () => void) {
@@ -75,7 +75,7 @@ export class SubscriptionRenewalTask implements OnModuleInit {
     }, timeUntilScheduled);
 
     this.logger.log(
-      `📅 Scheduled daily task at ${hour}:${minute.toString().padStart(2, '0')}`,
+      `[RlScheduler] Scheduled daily task at ${hour}:${minute.toString().padStart(2, '0')}`,
     );
   }
 
@@ -86,12 +86,12 @@ export class SubscriptionRenewalTask implements OnModuleInit {
     setInterval(callback, intervalMs);
 
     const hours = intervalMs / (60 * 60 * 1000);
-    this.logger.log(`⏰ Scheduled task every ${hours} hours`);
+    this.logger.log(`[RlScheduler] Scheduled task every ${hours} hours`);
   }
 
   // Run every day at 2 AM
   async handleSubscriptionRenewals() {
-    this.logger.log('🔄 Starting subscription renewal check...');
+    this.logger.log('[RlScheduler] Starting subscription renewal check...');
 
     try {
       // Get all active subscriptions that are ending today or tomorrow
@@ -108,23 +108,23 @@ export class SubscriptionRenewalTask implements OnModuleInit {
       for (const subscription of subscriptionsToRenew) {
         try {
           await this.renewSubscription(subscription);
-          this.logger.log(`✅ Renewed subscription #${subscription.id}`);
+          this.logger.log(`[RlScheduler] Renewed subscription #${subscription.id}`);
         } catch (error) {
           this.logger.error(
-            `❌ Failed to renew subscription #${subscription.id}: ${error.message}`,
+            `[ERROR] Failed to renew subscription #${subscription.id}: ${error.message}`,
           );
         }
       }
 
-      this.logger.log('✅ Subscription renewal check completed');
+      this.logger.log('[RlScheduler] Subscription renewal check completed');
     } catch (error) {
-      this.logger.error(`❌ Subscription renewal task failed: ${error.message}`);
+      this.logger.error(`[ERROR] Subscription renewal task failed: ${error.message}`);
     }
   }
 
   // Run overdue subscription check every 6 hours
   async handleOverdueSubscriptions() {
-    this.logger.log('⚠️ Checking for overdue subscriptions...');
+    this.logger.log('[WARNING] Checking for overdue subscriptions...');
 
     try {
       // Get all subscriptions with past_due status
@@ -140,27 +140,27 @@ export class SubscriptionRenewalTask implements OnModuleInit {
           if (daysOverdue > 7) {
             // Cancel subscription after 7 days overdue
             await this.cancelOverdueSubscription(subscription);
-            this.logger.log(`🚫 Cancelled overdue subscription #${subscription.id}`);
+            this.logger.log(`[RlScheduler] Cancelled overdue subscription #${subscription.id}`);
           } else {
             // Send reminder (would need notification service)
-            this.logger.log(`📧 Reminder sent for subscription #${subscription.id}`);
+            this.logger.log(`[RlScheduler] Reminder sent for subscription #${subscription.id}`);
           }
         } catch (error) {
           this.logger.error(
-            `❌ Failed to process overdue subscription #${subscription.id}: ${error.message}`,
+            `[ERROR] Failed to process overdue subscription #${subscription.id}: ${error.message}`,
           );
         }
       }
 
-      this.logger.log('✅ Overdue subscription check completed');
+      this.logger.log('[RlScheduler] Overdue subscription check completed');
     } catch (error) {
-      this.logger.error(`❌ Overdue subscription task failed: ${error.message}`);
+      this.logger.error(`[ERROR] Overdue subscription task failed: ${error.message}`);
     }
   }
 
   // Run trial ending notifications every day at 9 AM
   async handleTrialEndingNotifications() {
-    this.logger.log('📢 Checking for trials ending soon...');
+    this.logger.log('[RlScheduler] Checking for trials ending soon...');
 
     try {
       const trialsEndingSoon = await this.getTrialsEndingSoon();
@@ -175,25 +175,25 @@ export class SubscriptionRenewalTask implements OnModuleInit {
             // Send notification 3 days and 1 day before trial ends
             await this.sendTrialEndingNotification(subscription, daysUntilEnd);
             this.logger.log(
-              `📧 Trial ending notification sent for subscription #${subscription.id} (${daysUntilEnd} days left)`,
+              `[RlScheduler] Trial ending notification sent for subscription #${subscription.id} (${daysUntilEnd} days left)`,
             );
           }
         } catch (error) {
           this.logger.error(
-            `❌ Failed to send trial notification for #${subscription.id}: ${error.message}`,
+            `[ERROR] Failed to send trial notification for #${subscription.id}: ${error.message}`,
           );
         }
       }
 
-      this.logger.log('✅ Trial ending notification check completed');
+      this.logger.log('[RlScheduler] Trial ending notification check completed');
     } catch (error) {
-      this.logger.error(`❌ Trial notification task failed: ${error.message}`);
+      this.logger.error(`[ERROR] Trial notification task failed: ${error.message}`);
     }
   }
 
   // Run overdue invoice check every hour
   async handleOverdueInvoices() {
-    this.logger.log('💰 Checking for overdue invoices...');
+    this.logger.log('[RlScheduler] Checking for overdue invoices...');
 
     try {
       const overdueInvoices = await this.getOverdueInvoices();
@@ -207,18 +207,18 @@ export class SubscriptionRenewalTask implements OnModuleInit {
           if (daysOverdue === 1 || daysOverdue === 3 || daysOverdue === 7) {
             // Send reminder at specific intervals
             await this.sendOverdueInvoiceReminder(invoice, daysOverdue);
-            this.logger.log(`📧 Overdue invoice reminder sent for #${invoice.id}`);
+            this.logger.log(`[RlScheduler] Overdue invoice reminder sent for #${invoice.id}`);
           }
         } catch (error) {
           this.logger.error(
-            `❌ Failed to send invoice reminder for #${invoice.id}: ${error.message}`,
+            `[ERROR] Failed to send invoice reminder for #${invoice.id}: ${error.message}`,
           );
         }
       }
 
-      this.logger.log('✅ Overdue invoice check completed');
+      this.logger.log('[RlScheduler] Overdue invoice check completed');
     } catch (error) {
-      this.logger.error(`❌ Overdue invoice task failed: ${error.message}`);
+      this.logger.error(`[ERROR] Overdue invoice task failed: ${error.message}`);
     }
   }
 
@@ -291,7 +291,7 @@ export class SubscriptionRenewalTask implements OnModuleInit {
   ): Promise<void> {
     // TODO: Integrate with notification service
     this.logger.log(
-      `📧 [MOCK] Trial ending notification: Subscription #${subscription.id} expires in ${daysLeft} days`,
+      `[RlScheduler] [MOCK] Trial ending notification: Subscription #${subscription.id} expires in ${daysLeft} days`,
     );
   }
 
@@ -301,7 +301,7 @@ export class SubscriptionRenewalTask implements OnModuleInit {
   ): Promise<void> {
     // TODO: Integrate with notification service
     this.logger.log(
-      `📧 [MOCK] Overdue invoice reminder: Invoice #${invoice.id} is ${daysOverdue} days overdue`,
+      `[RlScheduler] [MOCK] Overdue invoice reminder: Invoice #${invoice.id} is ${daysOverdue} days overdue`,
     );
   }
 

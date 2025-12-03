@@ -27,7 +27,7 @@ export class KafkaProducerService implements OnModuleInit {
 
   async onModuleInit() {
     await this.kafkaClient.connect();
-    this.logger.log(`✅ Kafka producer connected (topic: ${this.topic})`);
+    this.logger.log(`[LLM] Kafka producer connected (topic: ${this.topic})`);
   }
 
   async onModuleDestroy() {
@@ -42,9 +42,9 @@ export class KafkaProducerService implements OnModuleInit {
     try {
       await this.kafkaClient.emit(this.topic, event).toPromise();
 
-      this.logger.log(`📤 Published deployment event: ${event.eventId} for ${event.changeset.impacted_services.length} services`);
+      this.logger.log(`[LLM] Published deployment event: ${event.eventId} for ${event.changeset.impacted_services.length} services`);
     } catch (error: any) {
-      this.logger.error(`❌ Failed to publish event: ${error.message}`);
+      this.logger.error(`[ERROR] Failed to publish event: ${error.message}`);
       throw error;
     }
   }

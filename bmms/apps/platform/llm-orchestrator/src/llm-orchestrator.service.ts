@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { mkdir, writeFile } from 'fs/promises';
 import * as path from 'path';
@@ -58,7 +58,7 @@ const SYSTEM_PROMPT = `You are an expert business analyst that converts Vietname
    - Required services: ALL of the above
    - BillingService mode: HYBRID (handle all billing types)
    - Note: SHARED SERVICE PATTERN - Each service type deploys ONCE, not per product
-   - Example: 2 retail products + 1 subscription → Still only 1 OrderService, 1 SubscriptionService
+   - Example: 2 retail products + 1 subscription -> Still only 1 OrderService, 1 SubscriptionService
 
 **CORE SERVICES (always needed):**
 - AuthService, CustomerService, CRMOrchestratorService
@@ -67,17 +67,17 @@ const SYSTEM_PROMPT = `You are an expert business analyst that converts Vietname
 - BillingService, PaymentService (Finance domain)
 
 **SERVICE MAPPING:**
-- OrderService → order-svc (namespace: order, port: 3011)
-- InventoryService → inventory-svc (namespace: order, port: 3013)
-- SubscriptionService → subscription-svc (namespace: order, port: 3012)
-- PromotionService → promotion-svc (namespace: product, port: 3009)
-- CatalogueService → catalogue-svc (namespace: product, port: 3007)
-- BillingService → billing-svc (namespace: finance, port: 3003)
-- PaymentService → payment-svc (namespace: finance, port: 3015)
-- AuthService → auth-svc (namespace: customer, port: 3000)
-- CustomerService → customer-svc (namespace: customer, port: 3001)
-- CRMOrchestratorService → crm-orchestrator (namespace: customer, port: 3002)
-- APIGatewayService → api-gateway (namespace: platform, port: 3099)
+- OrderService -> order-svc (namespace: order, port: 3011)
+- InventoryService -> inventory-svc (namespace: order, port: 3013)
+- SubscriptionService -> subscription-svc (namespace: order, port: 3012)
+- PromotionService -> promotion-svc (namespace: product, port: 3009)
+- CatalogueService -> catalogue-svc (namespace: product, port: 3007)
+- BillingService -> billing-svc (namespace: finance, port: 3003)
+- PaymentService -> payment-svc (namespace: finance, port: 3015)
+- AuthService -> auth-svc (namespace: customer, port: 3000)
+- CustomerService -> customer-svc (namespace: customer, port: 3001)
+- CRMOrchestratorService -> crm-orchestrator (namespace: customer, port: 3002)
+- APIGatewayService -> api-gateway (namespace: platform, port: 3099)
 
 **INTENT TYPES:**
 - "business_model_change": Chuyển đổi từ model này sang model khác
@@ -175,7 +175,7 @@ Return ONLY the JSON, no markdown code blocks, no additional text.`;
 export class LlmOrchestratorService {
   [x: string]: any;
   private geminiClient: GoogleGenerativeAI;
-  private useRAG = process.env.USE_RAG === 'true'; // 👈 Feature flag
+  private useRAG = process.env.USE_RAG === 'true'; // Feature flag
 
   constructor(
     private codeSearchService: CodeSearchService,
@@ -193,7 +193,7 @@ export class LlmOrchestratorService {
     role: string = 'guest',
     lang: 'vi' | 'en' = 'vi',
   ): Promise<LlmChatResponse> {
-     // 👇 RAG: Tìm code liên quan
+     // RAG: Tìm code liên quan
     let codeContext = '';
     if (this.useRAG) {
       const relevantCode = await this.codeSearchService.searchRelevantCode(message, 3);
@@ -249,7 +249,7 @@ export class LlmOrchestratorService {
 
     const validated = LLMReplySchema.parse(parsed);
 
-    // 👈 ADD: Business logic validation
+    // ADD: Business logic validation
     const validationResult = this.validator.validate(validated);
     
     if (!validationResult.isValid) {
@@ -282,7 +282,7 @@ export class LlmOrchestratorService {
       metadata: validated.metadata,
     };
 
-    // 🚀 AUTO-TRIGGER HELM DEPLOYMENT
+    // [LLM] AUTO-TRIGGER HELM DEPLOYMENT
     // Automatically generate changeset and trigger Helm deployment after successful LLM processing
     try {
       const autoDeployEnabled = process.env.AUTO_DEPLOY_ENABLED === 'true';
@@ -457,20 +457,20 @@ Always respond in JSON format:
 
 **CÁC LỰA CHỌN CÓ SẴN:**
 
-1. **retail** - "Bán hàng truyền thống" ⭐ CHỌN NÀY KHI BÁN SẢN PHẨM VẬT LÝ
-   - Khách mua → Thanh toán 1 lần → Nhận hàng → Xong
+1. **retail** - \"Bán hàng truyền thống\" [CHỌN NÀY KHI BÁN SẢN PHẨM VẬT LÝ]
+   - Khách mua -> Thanh toán 1 lần -> Nhận hàng -> Xong
    - Giống như: Shopee, Tiki, cửa hàng điện tử, cửa hàng quần áo
    - PHÙ HỢP VỚI: Bán linh kiện, thiết bị, quần áo, thực phẩm, đồ gia dụng, sản phẩm handmade, v.v.
    - DẤU HIỆU NHẬN BIẾT: người dùng nói "bán", "kinh doanh", "cửa hàng", "sản phẩm", "hàng hóa", "ship", "giao hàng"
    
-2. **subscription** - "Thu phí định kỳ" ⭐ CHỌN KHI CUNG CẤP DỊCH VỤ SỐ/NỘI DUNG
-   - Khách đăng ký → Trả tiền hàng tháng/năm → Được sử dụng dịch vụ LIÊN TỤC
+2. **subscription** - \"Thu phí định kỳ\" [CHỌN KHI CUNG CẤP DỊCH VỤ SỐ/NỘI DUNG]
+   - Khách đăng ký -> Trả tiền hàng tháng/năm -> Được sử dụng dịch vụ LIÊN TỤC
    - Giống như: Netflix, Spotify, phòng gym, SaaS, khóa học online membership
    - PHÙ HỢP VỚI: Streaming, phần mềm, nội dung số, dịch vụ cloud, membership
    - DẤU HIỆU NHẬN BIẾT: "hàng tháng", "định kỳ", "membership", "thành viên", "truy cập không giới hạn"
    
 3. **freemium** - "Miễn phí cơ bản, trả tiền nâng cấp"
-   - Khách dùng free → Thích → Trả tiền để có thêm tính năng
+   - Khách dùng free -> Thích -> Trả tiền để có thêm tính năng
    - Giống như: Canva, Notion, game mobile
    - PHÙ HỢP VỚI: Ứng dụng, công cụ online, game
    - DẤU HIỆU NHẬN BIẾT: "miễn phí", "free", "nâng cấp", "premium features"
@@ -480,12 +480,12 @@ Always respond in JSON format:
    - Giống như: Amazon (vừa bán hàng, vừa có Prime)
    - PHÙ HỢP VỚI: Doanh nghiệp lớn muốn đa dạng hóa nguồn thu
 
-**QUAN TRỌNG - QUY TẮC CHỌN:**
-- Nếu người dùng nói về BÁN SẢN PHẨM VẬT LÝ (linh kiện, điện tử, quần áo, đồ ăn, v.v.) → LUÔN chọn **retail**
+**QUAN TRỌNG - QUY TẬC CHỌN:**
+- Nếu người dùng nói về BÁN SẢN PHẨM VẬT LÝ (linh kiện, điện tử, quần áo, đồ ăn, v.v.) -> LUÔN chọn **retail**
 - Chỉ chọn **subscription** khi họ nói rõ về DỊCH VỤ SỐ hoặc NỘI DUNG định kỳ
-- Nếu không chắc chắn và sản phẩm là vật lý → mặc định chọn **retail**
+- Nếu không chắc chắn và sản phẩm là vật lý -> mặc định chọn **retail**
 
-**⚠️ BẮT BUỘC: PHẢI TRẢ VỀ TẤT CẢ 9 TRƯỜNG DƯỚI ĐÂY. KHÔNG ĐƯỢC BỎ QUA TRƯỜNG NÀO!**
+**[BẮT BUỘC]: PHẢI TRẢ VỀ TẤT CẢ 9 TRƯỜNG DƯỚI ĐÂY. KHÔNG ĐƯỢC BỎ QUA TRƯỜNG NÀO!**
 
 **OUTPUT FORMAT (CHỈ JSON, KHÔNG markdown, KHÔNG code block):**
 {
@@ -501,7 +501,7 @@ Always respond in JSON format:
 }
 
 **VÍ DỤ RESPONSE HOÀN CHỈNH:**
-{"greeting":"Chào bạn! 😊","recommendation_intro":"Dựa vào việc bạn muốn bán linh kiện điện tử, mình đề xuất:","recommended_model":"retail","why_this_fits":"1. Linh kiện điện tử là sản phẩm vật lý, khách mua 1 lần và nhận hàng. 2. Giống như các shop Shopee/Tiki bán linh kiện - mô hình đã chứng minh hiệu quả. 3. Dễ quản lý tồn kho và định giá theo từng sản phẩm.","how_it_works":"Rất đơn giản: Bạn đăng linh kiện lên → Khách xem và đặt mua → Thanh toán → Bạn giao hàng. Giống như mở shop trên Shopee vậy!","next_steps":["Bấm chọn mô hình 'Bán hàng truyền thống'","Thêm các linh kiện của bạn vào kho","Bắt đầu nhận đơn hàng đầu tiên!"],"alternatives_intro":"Nếu sau này bạn muốn mở rộng:","alternatives":[{"model":"multi","brief_reason":"Kết hợp thêm gói membership VIP cho khách thường xuyên"},{"model":"subscription","brief_reason":"Nếu bạn có dịch vụ sửa chữa định kỳ"}],"closing":"Bắt đầu với retail là lựa chọn an toàn nhất cho việc bán linh kiện. Chúc bạn kinh doanh thành công! 🚀"}`;
+{"greeting":"Chào bạn!","recommendation_intro":"Dựa vào việc bạn muốn bán linh kiện điện tử, mình đề xuất:","recommended_model":"retail","why_this_fits":"1. Linh kiện điện tử là sản phẩm vật lý, khách mua 1 lần và nhận hàng. 2. Giống như các shop Shopee/Tiki bán linh kiện - mô hình đã chứng minh hiệu quả. 3. Dễ quản lý tồn kho và định giá theo từng sản phẩm.","how_it_works":"Rất đơn giản: Bạn đăng linh kiện lên -> Khách xem và đặt mua -> Thanh toán -> Bạn giao hàng. Giống như mở shop trên Shopee vậy!","next_steps":["Bấm chọn mô hình 'Bán hàng truyền thống'","Thêm các linh kiện của bạn vào kho","Bắt đầu nhận đơn hàng đầu tiên!"],"alternatives_intro":"Nếu sau này bạn muốn mở rộng:","alternatives":[{"model":"multi","brief_reason":"Kết hợp thêm gói membership VIP cho khách thường xuyên"},{"model":"subscription","brief_reason":"Nếu bạn có dịch vụ sửa chữa định kỳ"}],"closing":"Bắt đầu với retail là lựa chọn an toàn nhất cho việc bán linh kiện. Chúc bạn kinh doanh thành công!"}`;
 
     const userPrompt = `Người dùng cần tư vấn:
 
@@ -531,7 +531,7 @@ Hãy tư vấn thật thân thiện, dễ hiểu bằng ${lang === 'vi' ? 'tiế
       console.log('[Recommend Model] Parsed JSON:', JSON.stringify(parsed, null, 2));
       
       const result = {
-        greeting: parsed.greeting || 'Chào bạn! 😊',
+        greeting: parsed.greeting || 'Chào bạn!',
         recommendation_intro: parsed.recommendation_intro || 'Dựa vào mô tả của bạn, mình đề xuất:',
         recommended_model: parsed.recommended_model || 'retail',
         why_this_fits: parsed.why_this_fits || 'Cách này sẽ phù hợp với nhu cầu của bạn.',
@@ -539,7 +539,7 @@ Hãy tư vấn thật thân thiện, dễ hiểu bằng ${lang === 'vi' ? 'tiế
         next_steps: parsed.next_steps || ['Bấm nút bên dưới để bắt đầu'],
         alternatives_intro: parsed.alternatives_intro || 'Nếu bạn chưa chắc, đây là một số lựa chọn khác:',
         alternatives: parsed.alternatives || [],
-        closing: parsed.closing || 'Chúc bạn kinh doanh thành công! 🚀',
+        closing: parsed.closing || 'Chúc bạn kinh doanh thành công!',
       };
       
       console.log('[Recommend Model] Final result:', JSON.stringify(result, null, 2));
@@ -549,11 +549,11 @@ Hãy tư vấn thật thân thiện, dễ hiểu bằng ${lang === 'vi' ? 'tiế
       console.log('[Recommend Model] Error:', error);
       console.log('[Recommend Model] Error details:', (error as Error).message);
       return {
-        greeting: 'Chào bạn! 😊',
+        greeting: 'Chào bạn!',
         recommendation_intro: 'Mình đã xem qua mô tả của bạn và đây là đề xuất:',
         recommended_model: 'retail',
         why_this_fits: 'Xin lỗi, mình không thể phân tích chi tiết được. Nhưng cách "Bán hàng truyền thống" là lựa chọn an toàn và dễ bắt đầu nhất.',
-        how_it_works: 'Bạn đăng sản phẩm → Khách hàng xem và đặt mua → Thanh toán → Giao hàng. Đơn giản vậy thôi!',
+        how_it_works: 'Bạn đăng sản phẩm -> Khách hàng xem và đặt mua -> Thanh toán -> Giao hàng. Đơn giản vậy thôi!',
         next_steps: [
           'Bấm nút bên dưới để chọn cách này',
           'Thêm sản phẩm/dịch vụ của bạn vào hệ thống',

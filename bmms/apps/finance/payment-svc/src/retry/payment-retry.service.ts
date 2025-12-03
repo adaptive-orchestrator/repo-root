@@ -82,7 +82,7 @@ export class PaymentRetryService {
   constructor(config?: PaymentRetryConfig) {
     this.config = config || this.defaultConfig;
     
-    this.logger.log('🔄 PaymentRetryService initialized');
+    this.logger.log('PaymentRetryService initialized');
     this.logger.log(`   Max attempts: ${this.config.maxAttempts}`);
     this.logger.log(`   Initial delay: ${this.formatDuration(this.config.initialDelayMs)}`);
     this.logger.log(`   Grace period: ${this.config.gracePeriodDays} days`);
@@ -358,12 +358,12 @@ export class PaymentRetryService {
   ): void {
     if (success) {
       this.logger.log(
-        `✅ Payment retry succeeded for subscription ${subscriptionId} ` +
+        `[Payment] Payment retry succeeded for subscription ${subscriptionId} ` +
         `(attempt ${attempt}/${this.config.maxAttempts})`
       );
     } else {
       this.logger.warn(
-        `❌ Payment retry failed for subscription ${subscriptionId} ` +
+        `[ERROR] Payment retry failed for subscription ${subscriptionId} ` +
         `(attempt ${attempt}/${this.config.maxAttempts}): ${error}`
       );
     }

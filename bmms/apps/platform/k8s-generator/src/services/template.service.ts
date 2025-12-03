@@ -32,7 +32,7 @@ export class TemplateService {
       this.serviceTemplate = Handlebars.compile(serviceTpl);
       this.configMapTemplate = Handlebars.compile(configMapTpl);
 
-      this.logger.log('✅ Templates loaded successfully');
+      this.logger.log('[K8sGen] Templates loaded successfully');
     } catch (error) {
       this.logger.error(`Failed to load templates: ${error.message}`);
       throw error;

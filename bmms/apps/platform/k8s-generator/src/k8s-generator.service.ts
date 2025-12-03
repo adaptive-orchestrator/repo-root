@@ -22,7 +22,7 @@ export class K8sGeneratorService {
    * SHARED SERVICE PATTERN:
    * - Each service in impacted_services array = 1 K8s Deployment
    * - Example: ["OrderService", "SubscriptionService"] = 2 deployments total
-   * - retail_products_count/subscription_plans_count → ENV vars, NOT deployment count
+   * - retail_products_count/subscription_plans_count -> ENV vars, NOT deployment count
    */
   async generateAndApply(dto: GenerateDeploymentDto, dryRun = false) {
     // Support both dto.impacted_services (getter) and dto.changeset.impacted_services
@@ -35,7 +35,7 @@ export class K8sGeneratorService {
     this.logger.log(`Generating K8s manifests for services: ${impactedServices.join(', ')}`);
     
     if (dryRun) {
-      this.logger.warn(`🔍 DRY-RUN MODE: YAML files will be generated but NOT applied to cluster`);
+      this.logger.warn(`[K8s] DRY-RUN MODE: YAML files will be generated but NOT applied to cluster`);
     }
     
     // Log shared service pattern info
@@ -43,8 +43,8 @@ export class K8sGeneratorService {
     const planCount = dto.changeset?.features?.find(f => f.key === 'subscription_plans_count')?.value;
     
     if (productCount || planCount) {
-      this.logger.log(`📦 SHARED SERVICE PATTERN: ${productCount ? `${productCount} retail products` : ''} ${planCount ? `${planCount} subscription plans` : ''}`);
-      this.logger.log(`→ Creating ${impactedServices.length} unique service deployments (NOT ${productCount || 0} + ${planCount || 0} deployments)`);
+      this.logger.log(`[K8s] SHARED SERVICE PATTERN: ${productCount ? `${productCount} retail products` : ''} ${planCount ? `${planCount} subscription plans` : ''}`);
+      this.logger.log(`-> Creating ${impactedServices.length} unique service deployments (NOT ${productCount || 0} + ${planCount || 0} deployments)`);
     }
 
     const results: Array<{
@@ -109,9 +109,9 @@ export class K8sGeneratorService {
           yamlFiles,
         });
 
-        this.logger.log(`✅ ${dryRun ? 'Generated YAML for' : 'Successfully deployed'} ${serviceName}`);
+        this.logger.log(`[K8s] ${dryRun ? 'Generated YAML for' : 'Successfully deployed'} ${serviceName}`);
       } catch (error) {
-        this.logger.error(`❌ Failed to deploy ${serviceName}: ${error.message}`);
+        this.logger.error(`[ERROR] Failed to deploy ${serviceName}: ${error.message}`);
         results.push({
           service: serviceName,
           status: 'failed',
@@ -212,7 +212,7 @@ export class K8sGeneratorService {
     const port = portMap[technicalName] || 3000;
 
     // Build env vars from changeset features
-    // Note: retail_products_count, subscription_plans_count → ENV vars in the deployment
+    // Note: retail_products_count, subscription_plans_count -> ENV vars in the deployment
     // These are NOT used to create multiple deployments (SHARED SERVICE PATTERN)
     const envVars: Record<string, string> = {};
     if (dto.changeset?.features) {
@@ -225,7 +225,7 @@ export class K8sGeneratorService {
     // Add service-specific metadata as ENV vars
     const productCount = dto.changeset?.features?.find(f => f.key === 'retail_products_count')?.value;
     if (productCount && technicalName === 'order-svc') {
-      this.logger.log(`→ ${technicalName} will handle ${productCount} retail products via database`);
+      this.logger.log(`-> ${technicalName} will handle ${productCount} retail products via database`);
     }
 
     return {
@@ -263,7 +263,7 @@ export class K8sGeneratorService {
     await writeFile(deploymentPath, deploymentYaml, 'utf-8');
     await writeFile(servicePath, serviceYaml, 'utf-8');
 
-    this.logger.log(`📝 Saved YAML files:`);
+    this.logger.log(`[K8s] Saved YAML files:`);
     this.logger.log(`   - ${deploymentPath}`);
     this.logger.log(`   - ${servicePath}`);
 

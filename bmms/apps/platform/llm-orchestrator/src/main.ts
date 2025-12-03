@@ -35,6 +35,6 @@ async function bootstrap() {
   await httpApp.startAllMicroservices();
   await httpApp.listen(httpPort);
   
-  console.log(`🚀 LLM Orchestrator HTTP: http://localhost:${httpPort} | gRPC: ${grpcUrl}`);
+  console.log(`[LlmOrchestrator] LLM Orchestrator HTTP: http://localhost:${httpPort} | gRPC: ${grpcUrl}`);
 }
 bootstrap();

@@ -76,7 +76,7 @@ export class HelmIntegrationService {
     const businessModel = this.extractBusinessModel(llmResponse);
     const enabledServices = SERVICE_PROFILES[businessModel];
 
-    this.logger.log(`📦 Generating changeset for business model: ${businessModel}`);
+    this.logger.log(`[LLM] Generating changeset for business model: ${businessModel}`);
     this.logger.log(`   Enabled services: ${enabledServices.join(', ')}`);
 
     const changeset: HelmChangeset = {
@@ -129,7 +129,7 @@ export class HelmIntegrationService {
     }
 
     // Default to retail
-    this.logger.warn('⚠️ Could not determine business model, defaulting to retail');
+    this.logger.warn('[WARNING] Could not determine business model, defaulting to retail');
     return 'retail';
   }
 
@@ -180,7 +180,7 @@ export class HelmIntegrationService {
     });
 
     await writeFile(filePath, yamlContent, 'utf8');
-    this.logger.log(`📝 Saved changeset to: ${filePath}`);
+    this.logger.log(`[LLM] Saved changeset to: ${filePath}`);
 
     return filePath;
   }
@@ -192,7 +192,7 @@ export class HelmIntegrationService {
    */
   async triggerDeployment(llmResponse: any, dryRun = false): Promise<any> {
     const mode = dryRun ? 'DRY-RUN' : 'DEPLOY';
-    this.logger.log(`🚀 [${mode}] Starting Helm deployment...`);
+    this.logger.log(`[LLM] [${mode}] Starting Helm deployment...`);
 
     try {
       // 1. Generate changeset from LLM response
@@ -203,7 +203,7 @@ export class HelmIntegrationService {
 
       // 3. If dry run, just return the changeset
       if (dryRun) {
-        this.logger.log(`✅ [DRY-RUN] Changeset generated successfully`);
+        this.logger.log(`[LLM] [DRY-RUN] Changeset generated successfully`);
         return {
           success: true,
           dryRun: true,
@@ -215,7 +215,7 @@ export class HelmIntegrationService {
 
       // 4. Check if auto-deploy is enabled
       if (!this.autoDeployEnabled) {
-        this.logger.warn('⚠️ Auto-deploy is disabled. Changeset saved but not applied.');
+        this.logger.warn('[WARNING] Auto-deploy is disabled. Changeset saved but not applied.');
         return {
           success: true,
           deployed: false,
@@ -237,7 +237,7 @@ export class HelmIntegrationService {
         message: 'Deployment completed successfully',
       };
     } catch (error: any) {
-      this.logger.error(`❌ Deployment failed: ${error.message}`);
+      this.logger.error(`[ERROR] Deployment failed: ${error.message}`);
       return {
         success: false,
         deployed: false,
@@ -257,7 +257,7 @@ export class HelmIntegrationService {
 
     try {
       // Step 1: Deploy databases
-      this.logger.log('📦 Step 1/2: Deploying databases...');
+      this.logger.log('[LLM] Step 1/2: Deploying databases...');
       const dbResult = await this.helmUpgrade(
         'databases',
         join(this.helmChartsPath, 'databases'),
@@ -267,7 +267,7 @@ export class HelmIntegrationService {
       results.push({ component: 'databases', ...dbResult });
 
       // Step 2: Deploy dynamic services
-      this.logger.log('📦 Step 2/2: Deploying dynamic services...');
+      this.logger.log('[LLM] Step 2/2: Deploying dynamic services...');
       const svcResult = await this.helmUpgrade(
         'dynamic-services',
         join(this.helmChartsPath, 'dynamic-services'),
@@ -276,10 +276,10 @@ export class HelmIntegrationService {
       );
       results.push({ component: 'dynamic-services', ...svcResult });
 
-      this.logger.log('✅ Helm deployment completed successfully');
+      this.logger.log('[LLM] Helm deployment completed successfully');
       return { success: true, results };
     } catch (error: any) {
-      this.logger.error(`❌ Helm deployment failed: ${error.message}`);
+      this.logger.error(`[ERROR] Helm deployment failed: ${error.message}`);
       throw error;
     }
   }
@@ -304,7 +304,7 @@ export class HelmIntegrationService {
       '--timeout 10m',
     ].join(' ');
 
-    this.logger.log(`🔧 Executing: ${command}`);
+    this.logger.log(`[LLM] Executing: ${command}`);
 
     try {
       const { stdout, stderr } = await execAsync(command, {

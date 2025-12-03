@@ -73,50 +73,50 @@ export class OrderSvcService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    //console.log('🔧 [OrderSvcService] onModuleInit called');
-    //console.log('🔧 customerClient:', !!this.customerClient);
-    //console.log('🔧 catalogueClient:', !!this.catalogueClient);
-    //console.log('🔧 inventoryClient:', !!this.inventoryClient);
+    //console.log('[OrderSvc] onModuleInit called');
+    //console.log('[OrderSvc] customerClient:', !!this.customerClient);
+    //console.log('[OrderSvc] catalogueClient:', !!this.catalogueClient);
+    //console.log('[OrderSvc] inventoryClient:', !!this.inventoryClient);
     
     this.customerService = this.customerClient.getService<ICustomerGrpcService>('CustomerService');
     this.catalogueService = this.catalogueClient.getService<ICatalogueGrpcService>('CatalogueService');
     this.inventoryService = this.inventoryClient.getService<IInventoryGrpcService>('InventoryService');
     
-    //console.log('✅ [OrderSvcService] gRPC services initialized');
-    //console.log('✅ customerService:', !!this.customerService);
-    //console.log('✅ catalogueService:', !!this.catalogueService);
-    //console.log('✅ inventoryService:', !!this.inventoryService);
+    //console.log('[OrderSvc] gRPC services initialized');
+    //console.log('[OrderSvc] customerService:', !!this.customerService);
+    //console.log('[OrderSvc] catalogueService:', !!this.catalogueService);
+    //console.log('[OrderSvc] inventoryService:', !!this.inventoryService);
   }
 
   // ============= CRUD =============
 
   async create(dto: CreateOrderDto): Promise<Order> {
-    //console.log('🔵 [OrderSvc.create] START - dto:', JSON.stringify(dto));
+    //console.log('[OrderSvc] create START - dto:', JSON.stringify(dto));
     
     // 1. Validate customer exists
-    //console.log('🔵 [OrderSvc.create] Step 1: Validating customer...');
+    //console.log('[OrderSvc] create Step 1: Validating customer...');
     await this.validateCustomer(dto.customerId);
-    //console.log('✅ [OrderSvc.create] Customer validation passed');
+    //console.log('[OrderSvc] create Customer validation passed');
 
     // 2. Validate all products exist and get prices
-    //console.log('🔵 [OrderSvc.create] Step 2: Validating products...');
+    //console.log('[OrderSvc] create Step 2: Validating products...');
     const validatedItems = await this.validateProducts(dto.items);
-    //console.log('✅ [OrderSvc.create] Products validated:', validatedItems);
+    //console.log('[OrderSvc] create Products validated:', validatedItems);
 
     // 3. Generate order number
-    //console.log('🔵 [OrderSvc.create] Step 3: Generating order number...');
+    //console.log('[OrderSvc] create Step 3: Generating order number...');
     const orderNumber = await this.generateOrderNumber();
-    //  console.log('✅ [OrderSvc.create] Order number generated:', orderNumber);
+    //  console.log('[OrderSvc] create Order number generated:', orderNumber);
 
     // 4. Calculate totals
     const subtotal = validatedItems.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
     );
-    //console.log('✅ [OrderSvc.create] Subtotal calculated:', subtotal);
+    //console.log('[OrderSvc] create Subtotal calculated:', subtotal);
 
     // 5. Create order
-    //console.log('🔵 [OrderSvc.create] Step 4: Creating order in DB...');
+    //console.log('[OrderSvc] create Step 4: Creating order in DB...');
     const order = await this.orderRepo.save(
       this.orderRepo.create({
         orderNumber,
@@ -129,7 +129,7 @@ export class OrderSvcService implements OnModuleInit {
         status: 'pending',
       }),
     );
-    //console.log('✅ [OrderSvc.create] Order created:', order.id);
+    //console.log('[OrderSvc] create Order created:', order.id);
 
     // 6. Add items
     const items = await Promise.all(
@@ -180,7 +180,7 @@ export class OrderSvcService implements OnModuleInit {
       },
     };
 
-    //console.log('🚀 Emitting order.created event:', orderCreatedEvent);
+    //console.log('[OrderSvc] Emitting order.created event:', orderCreatedEvent);
     this.kafka.emit('order.created', orderCreatedEvent);
 
     return order;
@@ -232,13 +232,13 @@ export class OrderSvcService implements OnModuleInit {
     
     for (const item of items) {
       try {
-        debug.log(`🔵 [validateProducts] Checking product ${item.productId}...`);
+        debug.log(`[OrderSvc] validateProducts Checking product ${item.productId}...`);
         
         // Get product from catalogue
         const response: any = await firstValueFrom(
           this.catalogueService.getProductById({ id: item.productId })
         );
-        debug.log(`✅ [validateProducts] Catalogue response:`, response);
+        debug.log(`[OrderSvc] validateProducts Catalogue response:`, response);
 
         if (!response || !response.product) {
           throw new NotFoundException(`Product ${item.productId} not found in catalogue`);
@@ -253,10 +253,10 @@ export class OrderSvcService implements OnModuleInit {
           price: Number(product.price), // Use price from catalogue
           notes: item.notes,
         });
-        debug.log(`✅ [validateProducts] Product ${item.productId} validated with price ${product.price}`);
+        debug.log(`[OrderSvc] validateProducts Product ${item.productId} validated with price ${product.price}`);
 
       } catch (error) {
-        debug.error(`❌ [validateProducts] Error validating product ${item.productId}:`, error);
+        debug.error(`[ERROR] validateProducts Error validating product ${item.productId}:`, error);
         if (error instanceof NotFoundException) throw error;
         throw new BadRequestException(`Failed to validate product ${item.productId}: ${error.message}`);
       }
@@ -361,7 +361,7 @@ export class OrderSvcService implements OnModuleInit {
       },
     });
 
-    //console.log(`📤 [ORDER-SVC] Emitted ORDER_UPDATED event for order ${updated.orderNumber}`);
+    //console.log(`[OrderSvc] Emitted ORDER_UPDATED event for order ${updated.orderNumber}`);
 
     return updated;
   }
@@ -515,7 +515,7 @@ export class OrderSvcService implements OnModuleInit {
         notes: `Added ${dto.quantity} x product ${dto.productId}`,
       }),
     );
-    //console.log(`🔵 [OrderSvc.addItem] Added item to order ${id}:`, dto)  ;
+    //console.log(`[OrderSvc] addItem Added item to order ${id}:`, dto)  ;
     return updated;
   }
 

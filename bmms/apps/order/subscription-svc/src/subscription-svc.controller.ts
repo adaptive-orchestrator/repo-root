@@ -46,7 +46,7 @@ export class subscriptionSvcController {
         message: 'Subscription created successfully',
       };
     } catch (error) {
-      debug.error('❌ [gRPC CreateSubscription] Error:', error);
+      debug.error('[gRPC CreateSubscription] Error:', error);
       throw error;
     }
   }
@@ -79,7 +79,7 @@ export class subscriptionSvcController {
         message: 'Subscription found',
       };
     } catch (error) {
-      console.error('❌ [gRPC GetSubscriptionById] Error:', error);
+      console.error('[gRPC GetSubscriptionById] Error:', error);
       throw error;
     }
   }
@@ -111,7 +111,7 @@ export class subscriptionSvcController {
         })),
       };
     } catch (error) {
-      console.error('❌ [gRPC GetSubscriptionsByCustomer] Error:', error);
+      console.error('[gRPC GetSubscriptionsByCustomer] Error:', error);
       throw error;
     }
   }
@@ -149,7 +149,7 @@ export class subscriptionSvcController {
         message: 'Subscription cancelled successfully',
       };
     } catch (error) {
-      console.error('❌ [gRPC CancelSubscription] Error:', error);
+      console.error('[gRPC CancelSubscription] Error:', error);
       throw error;
     }
   }
@@ -182,7 +182,7 @@ export class subscriptionSvcController {
         message: 'Subscription renewed successfully',
       };
     } catch (error) {
-      console.error('❌ [gRPC RenewSubscription] Error:', error);
+      console.error('[gRPC RenewSubscription] Error:', error);
       throw error;
     }
   }
@@ -220,7 +220,7 @@ export class subscriptionSvcController {
         message: 'Plan changed successfully',
       };
     } catch (error) {
-      console.error('❌ [gRPC ChangePlan] Error:', error);
+      console.error('[gRPC ChangePlan] Error:', error);
       throw error;
     }
   }
@@ -257,7 +257,7 @@ export class subscriptionSvcController {
         message: 'Subscription status updated successfully',
       };
     } catch (error) {
-      console.error('❌ [gRPC UpdateSubscriptionStatus] Error:', error);
+      console.error('[gRPC UpdateSubscriptionStatus] Error:', error);
       throw error;
     }
   }
@@ -290,7 +290,7 @@ export class subscriptionSvcController {
         message: 'All subscriptions retrieved',
       };
     } catch (error) {
-      debug.error('❌ [gRPC GetAllSubscriptions] Error:', error);
+      debug.error('[gRPC GetAllSubscriptions] Error:', error);
       throw error;
     }
   }
@@ -298,7 +298,7 @@ export class subscriptionSvcController {
   @GrpcMethod('SubscriptionService', 'CheckTrialExpiry')
   async checkTrialExpiry() {
     try {
-      debug.log('🔍 [SubscriptionController] Manual trigger: Checking trial expiry...');
+      debug.log('[SubscriptionController] Manual trigger: Checking trial expiry...');
       const result = await this.subscriptionSvcService.checkAndProcessTrialExpiry();
       
       return {
@@ -308,7 +308,7 @@ export class subscriptionSvcController {
         message: `Processed ${result.processed} subscriptions. Converted: ${result.converted}, Failed: ${result.failed}`,
       };
     } catch (error) {
-      debug.error('❌ [gRPC CheckTrialExpiry] Error:', error);
+      debug.error('[gRPC CheckTrialExpiry] Error:', error);
       throw error;
     }
   }
@@ -319,7 +319,7 @@ export class subscriptionSvcController {
       const stats = await this.subscriptionSvcService.getStats();
       return stats;
     } catch (error) {
-      debug.error('❌ [gRPC GetSubscriptionStats] Error:', error);
+      debug.error('[gRPC GetSubscriptionStats] Error:', error);
       throw error;
     }
   }
@@ -327,7 +327,7 @@ export class subscriptionSvcController {
   @GrpcMethod('SubscriptionService', 'ActivateSubscription')
   async activateSubscription(data: { subscriptionId: number }) {
     try {
-      debug.log(`🔄 [SubscriptionController] Activating subscription ${data.subscriptionId}...`);
+      debug.log(`[SubscriptionController] Activating subscription ${data.subscriptionId}...`);
       const subscription = await this.subscriptionSvcService.activateSubscription(data.subscriptionId);
       
       return {
@@ -341,7 +341,7 @@ export class subscriptionSvcController {
         message: 'Subscription activated successfully',
       };
     } catch (error) {
-      debug.error('❌ [gRPC ActivateSubscription] Error:', error);
+      debug.error('[gRPC ActivateSubscription] Error:', error);
       throw error;
     }
   }

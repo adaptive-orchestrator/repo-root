@@ -22,7 +22,7 @@ export class OrderEventListener {
   async handleCustomerCreated(@Payload() event: any) {
     try {
       this.logEvent(event);
-      console.log('📨 RAW EVENT RECEIVED:', JSON.stringify(event, null, 2));
+      console.log('[OrderEvent] RAW EVENT RECEIVED:', JSON.stringify(event, null, 2));
 
       // TODO: Implement business logic
       // e.g., create welcome voucher, send welcome email
@@ -55,9 +55,9 @@ export class OrderEventListener {
       this.logEvent(event);
       const { orderId } = event.data;
       // TODO: Mark order as "stock confirmed" if all items reserved
-      console.log(`✅ Inventory reserved for order ${orderId}`);
+      console.log(`[OrderEvent] Inventory reserved for order ${orderId}`);orderId}`);
     } catch (error) {
-      console.error('❌ Error handling INVENTORY_RESERVED:', error);
+      console.error('[ERROR] Error handling INVENTORY_RESERVED:', error);
     }
   }
 
@@ -69,10 +69,10 @@ export class OrderEventListener {
       
       if (reason === 'order_cancelled') {
         // await this.orderService.updateStatus(orderId, 'cancelled');
-        console.log(`📦 Inventory released for cancelled order ${orderId}`);
+        console.log(`[OrderEvent] Inventory released for cancelled order ${orderId}`);
       }
     } catch (error) {
-      console.error('❌ Error handling INVENTORY_RELEASED:', error);
+      console.error('[ERROR] Error handling INVENTORY_RELEASED:', error);
     }
   }
 
@@ -82,7 +82,7 @@ export class OrderEventListener {
   async handlePaymentSuccess(@Payload() event: event.PaymentSuccessEvent) {
     try {
       this.logEvent(event);
-      this.logger.debug('💰 handlePaymentSuccess TRIGGERED');
+      this.logger.debug('[OrderEvent] handlePaymentSuccess TRIGGERED');
 
       const { orderId, transactionId, amount } = event.data;
 
@@ -105,7 +105,7 @@ export class OrderEventListener {
       order.paymentStatus = 'paid';
       await this.orderRepository.save(order);
 
-      this.logger.log(`✅ Order ${orderId} marked as PAID with transaction ${transactionId}`);
+      this.logger.log(`[OrderEvent] Order ${orderId} marked as PAID with transaction ${transactionId}`);
 
     } catch (error) {
       this.logger.error('Error handling PAYMENT_SUCCESS event:', error);
@@ -115,7 +115,7 @@ export class OrderEventListener {
   async handlePaymentFailed(@Payload() event: event.PaymentFailedEvent) {
     try {
       this.logEvent(event);
-      this.logger.debug('❌ handlePaymentFailed TRIGGERED');
+      this.logger.debug('[OrderEvent] handlePaymentFailed TRIGGERED');
       
       const { orderId, reason } = event.data;
 
@@ -138,19 +138,19 @@ export class OrderEventListener {
       order.paymentStatus = 'failed';
       await this.orderRepository.save(order);
 
-      this.logger.warn(`❌ Order ${orderId} marked as FAILED: ${reason}`);
+      this.logger.warn(`[ERROR] Order ${orderId} marked as FAILED: ${reason}`);
 
       // TODO: Send notification to customer about payment failure
       // await this.notificationService.sendPaymentFailureAlert(orderId, reason);
 
     } catch (error) {
-      console.error('❌ Error handling PAYMENT_FAILED:', error);
+      console.error('[ERROR] Error handling PAYMENT_FAILED:', error);
     }
   }
 
 
   /** ------------------- Helper ------------------- */
   private logEvent<T extends { eventType: string }>(event: T) {
-    //console.log(`📥 Received event [${event.eventType}] at ${new Date().toISOString()}:`, event);
+    //console.log(`[OrderEvent] Received event [${event.eventType}] at ${new Date().toISOString()}:`, event);
   }
 }

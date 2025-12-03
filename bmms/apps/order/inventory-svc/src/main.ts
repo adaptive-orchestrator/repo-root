@@ -37,6 +37,6 @@ async function bootstrap() {
   await app.startAllMicroservices();
   await app.init();
   
-  console.log(`✅ Inventory Service | gRPC: ${grpcUrl} | Kafka: listening`);
+  console.log(`[InventorySvc] Inventory Service | gRPC: ${grpcUrl} | Kafka: listening`);
 }
 bootstrap();
