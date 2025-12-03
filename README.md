@@ -18,8 +18,7 @@ bmms/
 ├─ apps/                         # Microservices (14 services)
 │  ├─ platform/                  # Platform Services
 │  │  ├─ api-gateway/            # REST API Gateway (Port 3000)
-│  │  ├─ llm-orchestrator/       # LLM + K8s Integration (Port 3019, gRPC: 50052)
-│  │  ├─ k8s-generator/          # Kubernetes YAML Generator (Port 3020)
+│  │  ├─ llm-orchestrator/       # LLM + Helm Integration (Port 3019, gRPC: 50052)
 │  │  ├─ project-svc/            # Task/Project Management (Port 3021)
 │  │  ├─ rl-scheduler/           # Reinforcement Learning Scheduler
 │  │  └─ code-indexer/           # Code Indexing for RAG
@@ -298,7 +297,6 @@ Order Created → order.created → Inventory Service → inventory.reserved →
 | `invoice.created` | billing-svc | payment-svc |
 | `payment.success` | payment-svc | billing-svc, subscription-svc |
 | `subscription.created` | subscription-svc | billing-svc |
-| `k8s.deployment.requests` | llm-orchestrator | k8s-generator |
 
 ## 🤖 LLM Integration
 

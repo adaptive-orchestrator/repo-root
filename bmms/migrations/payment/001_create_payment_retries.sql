@@ -3,6 +3,8 @@
 -- Forward Migration
 -- ==============================
 
+USE payment_db;
+
 -- Create payment_retries table
 CREATE TABLE IF NOT EXISTS payment_retries (
   id INT PRIMARY KEY AUTO_INCREMENT,

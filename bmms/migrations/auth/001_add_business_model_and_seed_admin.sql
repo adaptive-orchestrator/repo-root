@@ -1,11 +1,23 @@
 -- Migration: Add businessModel column to users table
 -- Date: 2025-01-05
+-- Database: customer_db (auth uses customer_db)
 
--- Add businessModel column to users table
--- ALTER TABLE `users`
--- ADD COLUMN IF NOT EXISTS `businessModel` ENUM('retail', 'subscription', 'freemium') NULL
--- COMMENT 'Business model preference (only for ADMIN users)'
--- AFTER `role`;
+USE customer_db;
+
+-- Add businessModel column to users table if not exists
+SET @dbname = DATABASE();
+SET @tablename = 'users';
+SET @preparedStatement = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE (table_name = @tablename)
+       AND (table_schema = @dbname)
+       AND (column_name = 'businessModel')) > 0,
+    "SELECT 'Column businessModel already exists' AS msg",
+    "ALTER TABLE users ADD COLUMN businessModel ENUM('retail', 'subscription', 'freemium') NULL COMMENT 'Business model preference (only for ADMIN users)' AFTER role"
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Seed demo admin account for testing
 -- Password: Admin@123 (hashed with bcrypt, 10 rounds)
