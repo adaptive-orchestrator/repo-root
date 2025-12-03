@@ -23,6 +23,9 @@ export class Product {
   @Column({ nullable: true })
   imageUrl: string;
 
+  @Column({ nullable: true })
+  ownerId: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

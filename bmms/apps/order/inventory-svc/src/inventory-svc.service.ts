@@ -90,15 +90,28 @@ export class InventoryService implements OnModuleInit {
     productId: number,
     initialQuantity: number = 0,
     reorderLevel: number = 10,
+    ownerId?: string,
   ): Promise<Inventory> {
     // ✅ Validate product exists in catalogue
     await this.validateProduct(productId);
+
+    // Check if inventory already exists for this product AND owner
+    const existing = await this.inventoryRepo.findOne({
+      where: { productId, ownerId: ownerId || undefined },
+    });
+
+    if (existing) {
+      // If exists, just return it (or update quantity if needed)
+      debug.log(`📦 Inventory for product ${productId} (owner: ${ownerId}) already exists, returning existing...`);
+      return existing;
+    }
 
     const inventory = this.inventoryRepo.create({
       productId,
       quantity: initialQuantity,  // ✅ Total quantity
       reserved: 0,                // ✅ Nothing reserved yet
       reorderLevel,
+      ownerId,
       isActive: true,
     });
 
@@ -243,17 +256,43 @@ export class InventoryService implements OnModuleInit {
   }
   async create(dto: CreateInventoryDto): Promise<Inventory> {
     const existing = await this.inventoryRepo.findOne({
-      where: { productId: dto.productId },
+      where: { productId: dto.productId, ownerId: dto.ownerId || undefined },
     });
 
     if (existing) {
-      throw new ConflictException(
-        `Inventory for product ${dto.productId} already exists`,
-      );
+      // If inventory exists, update the quantity instead of throwing error
+      debug.log(`📦 Inventory for product ${dto.productId} (owner: ${dto.ownerId}) already exists, updating quantity...`);
+      existing.quantity += dto.quantity;
+      if (dto.reorderLevel !== undefined) existing.reorderLevel = dto.reorderLevel;
+      if (dto.maxStock !== undefined) existing.maxStock = dto.maxStock;
+      if (dto.warehouseLocation !== undefined) existing.warehouseLocation = dto.warehouseLocation;
+      
+      const updated = await this.inventoryRepo.save(existing);
+      
+      // Emit adjusted event instead of created
+      const event: InventoryAdjustedEvent = {
+        ...createBaseEvent(EventTopics.INVENTORY_ADJUSTED, 'inventory-service'),
+        eventType: 'inventory.adjusted',
+        data: {
+          productId: existing.productId,
+          previousQuantity: existing.quantity - dto.quantity,
+          currentQuantity: updated.quantity,
+          adjustment: dto.quantity,
+          reason: 'restock',
+        },
+      };
+
+      debug.log('🚀 Emitting inventory.adjusted event (upsert):', event);
+      this.kafka.emit(EventTopics.INVENTORY_ADJUSTED, event);
+      
+      return updated;
     }
 
     const inventory = await this.inventoryRepo.save(
-      this.inventoryRepo.create(dto),
+      this.inventoryRepo.create({
+        ...dto,
+        ownerId: dto.ownerId,
+      }),
     );
 
     // ✅ Emit với đúng structure
@@ -274,9 +313,14 @@ export class InventoryService implements OnModuleInit {
     return inventory;
   }
 
-  async getByProduct(productId: number): Promise<Inventory> {
+  async getByProduct(productId: number, ownerId?: string): Promise<Inventory> {
+    const whereCondition: any = { productId };
+    if (ownerId) {
+      whereCondition.ownerId = ownerId;
+    }
+    
     const inventory = await this.inventoryRepo.findOne({
-      where: { productId },
+      where: whereCondition,
       relations: ['reservations'],
     });
 
@@ -287,7 +331,7 @@ export class InventoryService implements OnModuleInit {
     return inventory;
   }
 
-  async listAll(page: number = 1, limit: number = 20): Promise<{
+  async listAll(page: number = 1, limit: number = 20, ownerId?: string): Promise<{
     items: Inventory[];
     total: number;
     page: number;
@@ -296,7 +340,13 @@ export class InventoryService implements OnModuleInit {
   }> {
     const skip = (page - 1) * limit;
     
+    const whereCondition: any = {};
+    if (ownerId) {
+      whereCondition.ownerId = ownerId;
+    }
+    
     const [items, total] = await this.inventoryRepo.findAndCount({
+      where: whereCondition,
       relations: ['reservations'],
       skip,
       take: limit,

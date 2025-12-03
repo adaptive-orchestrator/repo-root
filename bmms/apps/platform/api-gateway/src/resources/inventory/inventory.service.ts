@@ -4,8 +4,9 @@ import { catchError, firstValueFrom } from 'rxjs';
 
 interface InventoryGrpcService {
   createInventory(data: any): any;
-  getInventoryByProduct(data: { productId: number }): any;
+  getInventoryByProduct(data: { productId: number; ownerId?: string }): any;
   getAllInventory(data: any): any;
+  getInventoryByOwner(data: { ownerId: string; page?: number; limit?: number }): any;
   adjustStock(data: any): any;
   reserveStock(data: any): any;
   releaseStock(data: { reservationId: number }): any;
@@ -41,10 +42,10 @@ export class InventoryService implements OnModuleInit {
     }
   }
 
-  async getInventoryByProduct(productId: number) {
+  async getInventoryByProduct(productId: number, ownerId?: string) {
     try {
       return await firstValueFrom(
-        this.inventoryGrpcService.getInventoryByProduct({ productId }).pipe(
+        this.inventoryGrpcService.getInventoryByProduct({ productId, ownerId }).pipe(
           catchError(error => {
             throw new HttpException(error.details || 'Inventory not found', HttpStatus.NOT_FOUND);
           }),
@@ -56,10 +57,25 @@ export class InventoryService implements OnModuleInit {
     }
   }
 
-  async getAllInventory(page: number = 1, limit: number = 20) {
+  async getAllInventory(page: number = 1, limit: number = 20, ownerId?: string) {
     try {
       return await firstValueFrom(
-        this.inventoryGrpcService.getAllInventory({ page, limit }).pipe(
+        this.inventoryGrpcService.getAllInventory({ page, limit, ownerId }).pipe(
+          catchError(error => {
+            throw new HttpException(error.details || 'Failed to get inventory', HttpStatus.INTERNAL_SERVER_ERROR);
+          }),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException('Inventory service unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  async getInventoryByOwner(ownerId: string, page: number = 1, limit: number = 20) {
+    try {
+      return await firstValueFrom(
+        this.inventoryGrpcService.getInventoryByOwner({ ownerId, page, limit }).pipe(
           catchError(error => {
             throw new HttpException(error.details || 'Failed to get inventory', HttpStatus.INTERNAL_SERVER_ERROR);
           }),
