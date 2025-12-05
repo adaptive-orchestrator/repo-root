@@ -1,3 +1,7 @@
+-- Sample data for catalogue_db
+
+USE catalogue_db;
+
 -- Sample features
 INSERT INTO features (id, name, description, code, createdAt, updatedAt) VALUES
   (1, 'Task Management', 'Create and manage unlimited tasks', 'FEAT001', NOW(), NOW()),

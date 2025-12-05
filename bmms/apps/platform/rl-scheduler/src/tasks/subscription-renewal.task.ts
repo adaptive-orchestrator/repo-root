@@ -2,21 +2,68 @@ import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 
+interface Subscription {
+  id: number;
+  customerId: number;
+  planId: number;
+  planName: string;
+  amount: number;
+  billingCycle: string;
+  status: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  isTrialUsed: boolean;
+  trialStart: string;
+  trialEnd: string;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt: string;
+  cancellationReason: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  customerId: number;
+  status: string;
+  totalAmount: number;
+  dueAmount: number;
+  dueDate: string;
+}
+
 interface SubscriptionGrpcService {
-  getSubscriptionsByCustomer(data: any): any;
-  renewSubscription(data: any): any;
-  updateSubscriptionStatus(data: any): any;
+  getAllSubscriptions(data: Record<string, never>): any;
+  getSubscriptionsByCustomer(data: { customerId: number }): any;
+  renewSubscription(data: { id: number }): any;
+  updateSubscriptionStatus(data: { id: number; newStatus: string; reason?: string }): any;
+  checkTrialExpiry(data: Record<string, never>): any;
 }
 
 interface BillingGrpcService {
-  getInvoicesByStatus(data: any): any;
+  getAllInvoices(data: { page?: number; limit?: number; includeCancelled?: boolean }): any;
+  getInvoicesByCustomer(data: { customerId: number; page?: number; limit?: number }): any;
+  updateInvoiceStatus(data: { id: number; status: string }): any;
+}
+
+interface SubscriptionListResponse {
+  subscriptions: Subscription[];
+  message?: string;
+}
+
+interface InvoiceListResponse {
+  invoices: Invoice[];
+  total?: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
 }
 
 @Injectable()
 export class SubscriptionRenewalTask implements OnModuleInit {
   private readonly logger = new Logger(SubscriptionRenewalTask.name);
-  private subscriptionService: SubscriptionGrpcService;
-  private billingService: BillingGrpcService;
+  private subscriptionService!: SubscriptionGrpcService;
+  private billingService!: BillingGrpcService;
 
   constructor(
     @Inject('SUBSCRIPTION_PACKAGE') private readonly subscriptionClient: ClientGrpc,
@@ -46,7 +93,7 @@ export class SubscriptionRenewalTask implements OnModuleInit {
     // Run overdue invoice check every hour
     this.scheduleEvery(60 * 60 * 1000, () => this.handleOverdueInvoices());
 
-    this.logger.log('✅ All scheduled tasks started');
+    this.logger.log('[RlScheduler] All scheduled tasks started');
   }
 
   private scheduleDaily(hour: number, minute: number, callback: () => void) {
@@ -75,7 +122,7 @@ export class SubscriptionRenewalTask implements OnModuleInit {
     }, timeUntilScheduled);
 
     this.logger.log(
-      `📅 Scheduled daily task at ${hour}:${minute.toString().padStart(2, '0')}`,
+      `[RlScheduler] Scheduled daily task at ${hour}:${minute.toString().padStart(2, '0')}`,
     );
   }
 
@@ -86,21 +133,18 @@ export class SubscriptionRenewalTask implements OnModuleInit {
     setInterval(callback, intervalMs);
 
     const hours = intervalMs / (60 * 60 * 1000);
-    this.logger.log(`⏰ Scheduled task every ${hours} hours`);
+    this.logger.log(`[RlScheduler] Scheduled task every ${hours} hours`);
   }
 
-  // Run every day at 2 AM
-  async handleSubscriptionRenewals() {
-    this.logger.log('🔄 Starting subscription renewal check...');
+  // ============ Task Handlers ============
+
+  /**
+   * Run every day at 2 AM - Auto-renew subscriptions ending soon
+   */
+  async handleSubscriptionRenewals(): Promise<void> {
+    this.logger.log('[RlScheduler] Starting subscription renewal check...');
 
     try {
-      // Get all active subscriptions that are ending today or tomorrow
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      // Note: You'll need to add a method in subscription-svc to get subscriptions by period end
-      // For now, this is a placeholder
       const subscriptionsToRenew = await this.getSubscriptionsEndingSoon();
 
       this.logger.log(`Found ${subscriptionsToRenew.length} subscriptions to renew`);
@@ -108,59 +152,66 @@ export class SubscriptionRenewalTask implements OnModuleInit {
       for (const subscription of subscriptionsToRenew) {
         try {
           await this.renewSubscription(subscription);
-          this.logger.log(`✅ Renewed subscription #${subscription.id}`);
+          this.logger.log(`[RlScheduler] Renewed subscription #${subscription.id}`);
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(
-            `❌ Failed to renew subscription #${subscription.id}: ${error.message}`,
+            `[ERROR] Failed to renew subscription #${subscription.id}: ${errorMessage}`,
           );
         }
       }
 
-      this.logger.log('✅ Subscription renewal check completed');
+      this.logger.log('[RlScheduler] Subscription renewal check completed');
     } catch (error) {
-      this.logger.error(`❌ Subscription renewal task failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[ERROR] Subscription renewal task failed: ${errorMessage}`);
     }
   }
 
-  // Run overdue subscription check every 6 hours
-  async handleOverdueSubscriptions() {
-    this.logger.log('⚠️ Checking for overdue subscriptions...');
+  /**
+   * Run every 6 hours - Check and process overdue subscriptions
+   */
+  async handleOverdueSubscriptions(): Promise<void> {
+    this.logger.log('[WARNING] Checking for overdue subscriptions...');
 
     try {
-      // Get all subscriptions with past_due status
       const overdueSubscriptions = await this.getOverdueSubscriptions();
 
       this.logger.log(`Found ${overdueSubscriptions.length} overdue subscriptions`);
 
       for (const subscription of overdueSubscriptions) {
         try {
-          // Check how many days overdue
           const daysOverdue = this.calculateDaysOverdue(subscription.currentPeriodEnd);
 
           if (daysOverdue > 7) {
             // Cancel subscription after 7 days overdue
             await this.cancelOverdueSubscription(subscription);
-            this.logger.log(`🚫 Cancelled overdue subscription #${subscription.id}`);
+            this.logger.log(`[RlScheduler] Cancelled overdue subscription #${subscription.id}`);
           } else {
-            // Send reminder (would need notification service)
-            this.logger.log(`📧 Reminder sent for subscription #${subscription.id}`);
+            // Send reminder
+            await this.sendPaymentReminder(subscription, daysOverdue);
+            this.logger.log(`[RlScheduler] Reminder sent for subscription #${subscription.id}`);
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(
-            `❌ Failed to process overdue subscription #${subscription.id}: ${error.message}`,
+            `[ERROR] Failed to process overdue subscription #${subscription.id}: ${errorMessage}`,
           );
         }
       }
 
-      this.logger.log('✅ Overdue subscription check completed');
+      this.logger.log('[RlScheduler] Overdue subscription check completed');
     } catch (error) {
-      this.logger.error(`❌ Overdue subscription task failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[ERROR] Overdue subscription task failed: ${errorMessage}`);
     }
   }
 
-  // Run trial ending notifications every day at 9 AM
-  async handleTrialEndingNotifications() {
-    this.logger.log('📢 Checking for trials ending soon...');
+  /**
+   * Run every day at 9 AM - Send trial ending notifications
+   */
+  async handleTrialEndingNotifications(): Promise<void> {
+    this.logger.log('[RlScheduler] Checking for trials ending soon...');
 
     try {
       const trialsEndingSoon = await this.getTrialsEndingSoon();
@@ -172,28 +223,31 @@ export class SubscriptionRenewalTask implements OnModuleInit {
           const daysUntilEnd = this.calculateDaysUntilTrialEnd(subscription.trialEnd);
 
           if (daysUntilEnd === 3 || daysUntilEnd === 1) {
-            // Send notification 3 days and 1 day before trial ends
             await this.sendTrialEndingNotification(subscription, daysUntilEnd);
             this.logger.log(
-              `📧 Trial ending notification sent for subscription #${subscription.id} (${daysUntilEnd} days left)`,
+              `[RlScheduler] Trial ending notification sent for subscription #${subscription.id} (${daysUntilEnd} days left)`,
             );
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(
-            `❌ Failed to send trial notification for #${subscription.id}: ${error.message}`,
+            `[ERROR] Failed to send trial notification for #${subscription.id}: ${errorMessage}`,
           );
         }
       }
 
-      this.logger.log('✅ Trial ending notification check completed');
+      this.logger.log('[RlScheduler] Trial ending notification check completed');
     } catch (error) {
-      this.logger.error(`❌ Trial notification task failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[ERROR] Trial notification task failed: ${errorMessage}`);
     }
   }
 
-  // Run overdue invoice check every hour
-  async handleOverdueInvoices() {
-    this.logger.log('💰 Checking for overdue invoices...');
+  /**
+   * Run every hour - Check and send overdue invoice reminders
+   */
+  async handleOverdueInvoices(): Promise<void> {
+    this.logger.log('[RlScheduler] Checking for overdue invoices...');
 
     try {
       const overdueInvoices = await this.getOverdueInvoices();
@@ -205,105 +259,218 @@ export class SubscriptionRenewalTask implements OnModuleInit {
           const daysOverdue = this.calculateDaysOverdue(invoice.dueDate);
 
           if (daysOverdue === 1 || daysOverdue === 3 || daysOverdue === 7) {
-            // Send reminder at specific intervals
             await this.sendOverdueInvoiceReminder(invoice, daysOverdue);
-            this.logger.log(`📧 Overdue invoice reminder sent for #${invoice.id}`);
+            this.logger.log(`[RlScheduler] Overdue invoice reminder sent for #${invoice.id}`);
           }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(
-            `❌ Failed to send invoice reminder for #${invoice.id}: ${error.message}`,
+            `[ERROR] Failed to send invoice reminder for #${invoice.id}: ${errorMessage}`,
           );
         }
       }
 
-      this.logger.log('✅ Overdue invoice check completed');
+      this.logger.log('[RlScheduler] Overdue invoice check completed');
     } catch (error) {
-      this.logger.error(`❌ Overdue invoice task failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`[ERROR] Overdue invoice task failed: ${errorMessage}`);
     }
   }
 
-  // ============ Helper Methods ============
+  // ============ Data Fetching Methods ============
 
-  private async getSubscriptionsEndingSoon(): Promise<any[]> {
-    // TODO: Implement query to get subscriptions ending in next 24 hours
-    // For now, return empty array
-    return [];
-  }
-
-  private async getOverdueSubscriptions(): Promise<any[]> {
-    // TODO: Query subscriptions with status = 'past_due'
-    return [];
-  }
-
-  private async getTrialsEndingSoon(): Promise<any[]> {
-    // TODO: Query subscriptions in trial with trialEnd in next 3 days
-    return [];
-  }
-
-  private async getOverdueInvoices(): Promise<any[]> {
+  /**
+   * Get all active subscriptions ending within the next 24 hours
+   */
+  private async getSubscriptionsEndingSoon(): Promise<Subscription[]> {
     try {
-      const result: any = await firstValueFrom(
-        this.billingService.getInvoicesByStatus({ status: 'unpaid' }),
+      const result: SubscriptionListResponse = await firstValueFrom(
+        this.subscriptionService.getAllSubscriptions({}),
       );
-      
-      const today = new Date();
-      // Filter invoices that are overdue (dueDate < today)
-      return result.invoices?.filter((invoice: any) => {
-        const dueDate = new Date(invoice.dueDate);
-        return dueDate < today;
-      }) || [];
+
+      const subscriptions: Subscription[] = result?.subscriptions || [];
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Filter active subscriptions ending within next 24 hours and not set to cancel
+      return subscriptions.filter((sub: Subscription) => {
+        if (sub.status !== 'active' || sub.cancelAtPeriodEnd) {
+          return false;
+        }
+        const periodEnd = new Date(sub.currentPeriodEnd);
+        return periodEnd >= now && periodEnd <= tomorrow;
+      });
     } catch (error) {
-      this.logger.error(`Failed to get overdue invoices: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get subscriptions ending soon: ${errorMessage}`);
       return [];
     }
   }
 
-  private async renewSubscription(subscription: any): Promise<void> {
+  /**
+   * Get all subscriptions with past_due status or expired period
+   */
+  private async getOverdueSubscriptions(): Promise<Subscription[]> {
+    try {
+      const result: SubscriptionListResponse = await firstValueFrom(
+        this.subscriptionService.getAllSubscriptions({}),
+      );
+
+      const subscriptions: Subscription[] = result?.subscriptions || [];
+      const now = new Date();
+
+      // Filter subscriptions that are past_due or have expired period
+      return subscriptions.filter((sub: Subscription) => {
+        if (sub.status === 'past_due') {
+          return true;
+        }
+        // Also check if active subscription has expired period (payment failed)
+        if (sub.status === 'active') {
+          const periodEnd = new Date(sub.currentPeriodEnd);
+          return periodEnd < now;
+        }
+        return false;
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get overdue subscriptions: ${errorMessage}`);
+      return [];
+    }
+  }
+
+  /**
+   * Get all trial subscriptions ending within the next 3 days
+   */
+  private async getTrialsEndingSoon(): Promise<Subscription[]> {
+    try {
+      const result: SubscriptionListResponse = await firstValueFrom(
+        this.subscriptionService.getAllSubscriptions({}),
+      );
+
+      const subscriptions: Subscription[] = result?.subscriptions || [];
+      const now = new Date();
+      const threeDaysLater = new Date(now);
+      threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+      // Filter trial subscriptions ending within next 3 days
+      return subscriptions.filter((sub: Subscription) => {
+        if (sub.status !== 'trial' || !sub.trialEnd) {
+          return false;
+        }
+        const trialEnd = new Date(sub.trialEnd);
+        return trialEnd >= now && trialEnd <= threeDaysLater;
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get trials ending soon: ${errorMessage}`);
+      return [];
+    }
+  }
+
+  /**
+   * Get all unpaid invoices that are past due date
+   */
+  private async getOverdueInvoices(): Promise<Invoice[]> {
+    try {
+      const result: InvoiceListResponse = await firstValueFrom(
+        this.billingService.getAllInvoices({ page: 1, limit: 1000, includeCancelled: false }),
+      );
+
+      const invoices: Invoice[] = result?.invoices || [];
+      const today = new Date();
+
+      // Filter invoices that are unpaid/overdue and past due date
+      return invoices.filter((invoice: Invoice) => {
+        const isUnpaid = ['unpaid', 'draft', 'overdue'].includes(invoice.status);
+        if (!isUnpaid) {
+          return false;
+        }
+        const dueDate = new Date(invoice.dueDate);
+        return dueDate < today;
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get overdue invoices: ${errorMessage}`);
+      return [];
+    }
+  }
+
+  // ============ Action Methods ============
+
+  /**
+   * Renew a subscription via gRPC
+   */
+  private async renewSubscription(subscription: Subscription): Promise<void> {
     try {
       await firstValueFrom(
         this.subscriptionService.renewSubscription({
           id: subscription.id,
-          isAutoRenewal: true,
         }),
       );
     } catch (error) {
-      throw new Error(`Renewal failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Renewal failed: ${errorMessage}`);
     }
   }
 
-  private async cancelOverdueSubscription(subscription: any): Promise<void> {
+  /**
+   * Cancel an overdue subscription
+   */
+  private async cancelOverdueSubscription(subscription: Subscription): Promise<void> {
     try {
       await firstValueFrom(
         this.subscriptionService.updateSubscriptionStatus({
           id: subscription.id,
-          status: 'cancelled',
+          newStatus: 'cancelled',
           reason: 'Payment overdue for more than 7 days',
         }),
       );
     } catch (error) {
-      throw new Error(`Cancellation failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Cancellation failed: ${errorMessage}`);
     }
   }
 
+  // ============ Notification Methods (Mock - integrate with notification service) ============
+
   private async sendTrialEndingNotification(
-    subscription: any,
+    subscription: Subscription,
     daysLeft: number,
   ): Promise<void> {
-    // TODO: Integrate with notification service
+    // TODO: Integrate with notification service (email/SMS)
     this.logger.log(
-      `📧 [MOCK] Trial ending notification: Subscription #${subscription.id} expires in ${daysLeft} days`,
+      `[RlScheduler] [NOTIFICATION] Trial ending: Subscription #${subscription.id} ` +
+      `(Customer #${subscription.customerId}) expires in ${daysLeft} days. ` +
+      `Plan: ${subscription.planName}, Amount: $${subscription.amount}`,
     );
   }
 
   private async sendOverdueInvoiceReminder(
-    invoice: any,
+    invoice: Invoice,
     daysOverdue: number,
   ): Promise<void> {
-    // TODO: Integrate with notification service
+    // TODO: Integrate with notification service (email/SMS)
     this.logger.log(
-      `📧 [MOCK] Overdue invoice reminder: Invoice #${invoice.id} is ${daysOverdue} days overdue`,
+      `[RlScheduler] [NOTIFICATION] Overdue invoice: Invoice #${invoice.id} ` +
+      `(${invoice.invoiceNumber}) for Customer #${invoice.customerId} ` +
+      `is ${daysOverdue} days overdue. Amount due: $${invoice.dueAmount}`,
     );
   }
+
+  private async sendPaymentReminder(
+    subscription: Subscription,
+    daysOverdue: number,
+  ): Promise<void> {
+    // TODO: Integrate with notification service (email/SMS)
+    this.logger.log(
+      `[RlScheduler] [NOTIFICATION] Payment reminder: Subscription #${subscription.id} ` +
+      `(Customer #${subscription.customerId}) is ${daysOverdue} days overdue. ` +
+      `Plan: ${subscription.planName}. Please update payment method.`,
+    );
+  }
+
+  // ============ Utility Methods ============
 
   private calculateDaysOverdue(endDate: string | Date): number {
     const end = new Date(endDate);

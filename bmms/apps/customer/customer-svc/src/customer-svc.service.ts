@@ -21,7 +21,7 @@ export class CustomerSvcService {
   async create(dto: CreateCustomerDto): Promise<Customer> {
     const customer = await this.repo.save(this.repo.create(dto));
 
-    // ✅ Emit event customer.created với đúng structure
+    // Emit event customer.created với đúng structure
     const event: CustomerCreatedEvent = {
       ...createBaseEvent('customer.created', 'customer-service'),
       eventType: 'customer.created',
@@ -34,7 +34,7 @@ export class CustomerSvcService {
       },
     };
 
-    debug.log('🚀 Emitting customer.created event:', event);
+    debug.log('Emitting customer.created event:', event);
     this.kafka.emit('customer.created', event);
 
     return customer;
@@ -105,7 +105,7 @@ export class CustomerSvcService {
     customer.segment = segment;
     const saved = await this.repo.save(customer);
 
-    // ✅ Emit event segment.changed với đúng structure
+    // Emit event segment.changed với đúng structure
     const event: SegmentChangedEvent = {
       ...createBaseEvent('segment.changed', 'customer-service'),
       eventType: 'segment.changed',
@@ -115,7 +115,7 @@ export class CustomerSvcService {
       },
     };
 
-    debug.log(`🚀 Emitting segment.changed event: ${previousSegment} → ${segment}`);
+    debug.log(`Emitting segment.changed event: ${previousSegment} -> ${segment}`);
     this.kafka.emit('segment.changed', event);
 
     return saved;

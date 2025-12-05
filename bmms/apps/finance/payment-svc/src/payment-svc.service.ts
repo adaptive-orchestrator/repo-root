@@ -27,7 +27,7 @@ export class PaymentService {
    */
   async initiatePayment(dto: CreatePaymentDto): Promise<Payment> {
     try {
-      this.logger.log(`📝 Initiating payment for invoice ${dto.invoiceId}`);
+      this.logger.log(`[Payment] Initiating payment for invoice ${dto.invoiceId}`);
 
       // Check if payment already exists for invoice
       const existing = await this.paymentRepository.findOne({
@@ -63,10 +63,10 @@ export class PaymentService {
         `Payment initiated for invoice ${invoiceNumber}`,
       );
 
-      this.logger.log(`✅ Payment initiated: ${savedPayment.id}`);
+      this.logger.log(`[Payment] Payment initiated: ${savedPayment.id}`);
       return savedPayment;
     } catch (error) {
-      this.logger.error(`❌ Error initiating payment:`, error);
+      this.logger.error(`[ERROR] Error initiating payment:`, error);
       throw error;
     }
   }
@@ -77,7 +77,7 @@ export class PaymentService {
    */
   async confirmPayment(dto: ConfirmPaymentDto): Promise<Payment> {
     try {
-      this.logger.log(`💳 Confirming payment ${dto.paymentId}`);
+      this.logger.log(`[Payment] Confirming payment ${dto.paymentId}`);
 
       // Find payment record
       const payment = await this.paymentRepository.findOne({
@@ -89,7 +89,7 @@ export class PaymentService {
       }
 
       if (payment.status === 'completed') {
-        this.logger.warn(`⚠️ Payment already completed: ${dto.paymentId}`);
+        this.logger.warn(`[WARNING] Payment already completed: ${dto.paymentId}`);
         return payment;
       }
 
@@ -100,7 +100,7 @@ export class PaymentService {
         payment.paidAmount = dto.amount || payment.totalAmount;
         payment.paidAt = new Date();
 
-        this.logger.log(`✅ Payment successful: ${payment.transactionId}`);
+        this.logger.log(`[Payment] Payment successful: ${payment.transactionId}`);
 
         await this.logPaymentHistory(
           payment.id,
@@ -113,7 +113,7 @@ export class PaymentService {
         payment.failureReason = dto.failureReason || 'Payment failed';
         payment.failedAt = new Date();
 
-        this.logger.log(`❌ Payment failed: ${payment.failureReason}`);
+        this.logger.log(`[ERROR] Payment failed: ${payment.failureReason}`);
 
         await this.logPaymentHistory(
           payment.id,
@@ -126,7 +126,7 @@ export class PaymentService {
       const updated = await this.paymentRepository.save(payment);
       return updated;
     } catch (error) {
-      this.logger.error(`❌ Error confirming payment:`, error);
+      this.logger.error(`[ERROR] Error confirming payment:`, error);
       throw error;
     }
   }
@@ -140,7 +140,7 @@ export class PaymentService {
    */
   async processSubscriptionPayment(dto: SubscriptionPaymentDto): Promise<SubscriptionPaymentResponseDto> {
     try {
-      this.logger.log(`💳 Processing subscription payment for subscription ${dto.subscriptionId}`);
+      this.logger.log(`[Payment] Processing subscription payment for subscription ${dto.subscriptionId}`);
       this.logger.log(`   Customer: ${dto.customerId}`);
       this.logger.log(`   Amount: ${dto.amount}`);
       this.logger.log(`   Plan: ${dto.planName || 'N/A'}`);
@@ -165,7 +165,7 @@ export class PaymentService {
       });
 
       const savedPayment = await this.paymentRepository.save(payment);
-      this.logger.log(`✅ Payment record created: ${savedPayment.id}`);
+      this.logger.log(`[Payment] Payment record created: ${savedPayment.id}`);
 
       // Log payment history
       await this.logPaymentHistory(
@@ -175,9 +175,9 @@ export class PaymentService {
         `Subscription payment for ${dto.planName || 'subscription'} - Transaction: ${transactionId}`,
       );
 
-      // ⭐ Emit subscription.payment.success event
+      // [Payment] Emit subscription.payment.success event
       // Billing và Subscription service sẽ lắng nghe event này
-      this.logger.log(`📤 Emitting subscription.payment.success event...`);
+      this.logger.log(`[Payment] Emitting subscription.payment.success event...`);
       
       this.kafkaClient.emit('subscription.payment.success', {
         eventId: crypto.randomUUID(),
@@ -197,7 +197,7 @@ export class PaymentService {
         },
       });
 
-      this.logger.log(`✅ Subscription payment completed successfully`);
+      this.logger.log(`[Payment] Subscription payment completed successfully`);
 
       return {
         success: true,
@@ -209,7 +209,7 @@ export class PaymentService {
       };
 
     } catch (error) {
-      this.logger.error(`❌ Error processing subscription payment:`, error);
+      this.logger.error(`[ERROR] Error processing subscription payment:`, error);
       
       // Emit failure event
       this.kafkaClient.emit('subscription.payment.failed', {
@@ -246,7 +246,7 @@ export class PaymentService {
 
       return payment;
     } catch (error) {
-      this.logger.error(`❌ Error getting payment by ID:`, error);
+      this.logger.error(`[ERROR] Error getting payment by ID:`, error);
       throw error;
     }
   }
@@ -257,7 +257,7 @@ export class PaymentService {
    */
   async getByInvoice(invoiceId: number): Promise<Payment[]> {
     try {
-      this.logger.log(`🔍 Getting payments for invoice ${invoiceId}`);
+      this.logger.log(`[Payment] Getting payments for invoice ${invoiceId}`);
 
       const payments = await this.paymentRepository.find({
         where: { invoiceId },
@@ -266,7 +266,7 @@ export class PaymentService {
 
       return payments;
     } catch (error) {
-      this.logger.error(`❌ Error getting payments by invoice:`, error);
+      this.logger.error(`[ERROR] Error getting payments by invoice:`, error);
       throw error;
     }
   }
@@ -303,7 +303,7 @@ export class PaymentService {
         take: limitNum,
       });
 
-      this.logger.log(`📋 Retrieved ${payments.length} payments (page ${pageNum}/${totalPages}, total: ${total})`);
+      this.logger.log(`[Payment] Retrieved ${payments.length} payments (page ${pageNum}/${totalPages}, total: ${total})`);
       
       return {
         payments,
@@ -317,7 +317,7 @@ export class PaymentService {
         },
       };
     } catch (error) {
-      this.logger.error(`❌ Error listing payments:`, error);
+      this.logger.error(`[ERROR] Error listing payments:`, error);
       throw error;
     }
   }
@@ -328,7 +328,7 @@ export class PaymentService {
    */
   async getPaymentStats(): Promise<any> {
     try {
-      this.logger.log(`📊 Generating payment statistics`);
+      this.logger.log(`[Payment] Generating payment statistics`);
 
       // Total statistics
       const total = await this.paymentRepository.find();
@@ -371,10 +371,10 @@ export class PaymentService {
         recentTransactions: total.slice(0, 10), // Last 10 transactions
       };
 
-      this.logger.log(`✅ Payment statistics generated`);
+      this.logger.log(`[Payment] Payment statistics generated`);
       return stats;
     } catch (error) {
-      this.logger.error(`❌ Error generating payment stats:`, error);
+      this.logger.error(`[ERROR] Error generating payment stats:`, error);
       throw error;
     }
   }
@@ -394,7 +394,7 @@ export class PaymentService {
   }) {
     try {
       this.logger.log(
-        `📝 Registering invoice ${invoiceData.invoiceNumber}`,
+        `[Payment] Registering invoice ${invoiceData.invoiceNumber}`,
       );
 
       // Check if invoice already registered
@@ -404,7 +404,7 @@ export class PaymentService {
 
       if (existing) {
         this.logger.warn(
-          `⚠️ Invoice already registered: ${invoiceData.invoiceNumber}`,
+          `[WARNING] Invoice already registered: ${invoiceData.invoiceNumber}`,
         );
         return existing;
       }
@@ -430,12 +430,12 @@ export class PaymentService {
       );
 
       this.logger.log(
-        `✅ Invoice registered: ${invoiceData.invoiceNumber}`,
+        `[Payment] Invoice registered: ${invoiceData.invoiceNumber}`,
       );
 
       return saved;
     } catch (error) {
-      this.logger.error(`❌ Error registering invoice:`, error);
+      this.logger.error(`[ERROR] Error registering invoice:`, error);
       throw error;
     }
   }
@@ -462,7 +462,7 @@ export class PaymentService {
   }) {
     try {
       this.logger.log(
-        `💳 Marking payment as successful: ${data.paymentId}`,
+        `[Payment] Marking payment as successful: ${data.paymentId}`,
       );
 
       const payment = await this.paymentRepository.findOne({
@@ -471,7 +471,7 @@ export class PaymentService {
 
       if (!payment) {
         this.logger.warn(
-          `⚠️ Payment record not found for invoice ${data.invoiceId}`,
+          `[WARNING] Payment record not found for invoice ${data.invoiceId}`,
         );
         return;
       }
@@ -490,10 +490,10 @@ export class PaymentService {
         `Payment successful - Transaction: ${data.transactionId}`,
       );
 
-      this.logger.log(`✅ Payment marked as successful`);
+      this.logger.log(`[Payment] Payment marked as successful`);
       return updated;
     } catch (error) {
-      this.logger.error(`❌ Error marking payment as successful:`, error);
+      this.logger.error(`[ERROR] Error marking payment as successful:`, error);
       throw error;
     }
   }
@@ -508,7 +508,7 @@ export class PaymentService {
     errorCode?: string;  // Optional
   }) {
     try {
-      this.logger.log(`❌ Marking payment as failed: ${data.paymentId}`);
+      this.logger.log(`[ERROR] Marking payment as failed: ${data.paymentId}`);
 
       const payment = await this.paymentRepository.findOne({
         where: { invoiceId: data.invoiceId },
@@ -516,7 +516,7 @@ export class PaymentService {
 
       if (!payment) {
         this.logger.warn(
-          `⚠️ Payment record not found for invoice ${data.invoiceId}`,
+          `[WARNING] Payment record not found for invoice ${data.invoiceId}`,
         );
         return;
       }
@@ -534,10 +534,10 @@ export class PaymentService {
         `Payment failed - Reason: ${data.reason}`,
       );
 
-      this.logger.log(`✅ Payment marked as failed`);
+      this.logger.log(`[Payment] Payment marked as failed`);
       return updated;
     } catch (error) {
-      this.logger.error(`❌ Error marking payment as failed:`, error);
+      this.logger.error(`[ERROR] Error marking payment as failed:`, error);
       throw error;
     }
   }
@@ -548,7 +548,7 @@ export class PaymentService {
   async updateInvoiceStatus(invoiceId: number, status: string) {
     try {
       this.logger.log(
-        `🔄 Updating invoice ${invoiceId} status to ${status}`,
+        `[Payment] Updating invoice ${invoiceId} status to ${status}`,
       );
 
       await this.paymentRepository.update(
@@ -556,9 +556,9 @@ export class PaymentService {
         { status: "completed", updatedAt: new Date() },
       );
 
-      this.logger.log(`✅ Invoice status updated to ${status}`);
+      this.logger.log(`[Payment] Invoice status updated to ${status}`);
     } catch (error) {
-      this.logger.error(`❌ Error updating invoice status:`, error);
+      this.logger.error(`[ERROR] Error updating invoice status:`, error);
       throw error;
     }
   }
@@ -585,7 +585,7 @@ export class PaymentService {
 
       await this.paymentHistoryRepository.save(history);
     } catch (error) {
-      this.logger.error(`⚠️ Error logging payment history:`, error);
+      this.logger.error(`[WARNING] Error logging payment history:`, error);
     }
   }
 
@@ -607,7 +607,7 @@ export class PaymentService {
     method: string;
     status: string;
   }): Promise<Payment> {
-    this.logger.log(`📝 Creating pending payment for invoice ${data.invoiceNumber}`);
+    this.logger.log(`[Payment] Creating pending payment for invoice ${data.invoiceNumber}`);
     
     const payment = this.paymentRepository.create({
       invoiceId: data.invoiceId,
@@ -619,7 +619,7 @@ export class PaymentService {
     });
 
     const savedPayment = await this.paymentRepository.save(payment);
-    this.logger.log(`✅ Pending payment created: ${savedPayment.id}`);
+    this.logger.log(`[Payment] Pending payment created: ${savedPayment.id}`);
     
     return savedPayment;
   }
@@ -639,7 +639,7 @@ export class PaymentService {
     amount: number;
     retryCount: number;
   }): Promise<Payment> {
-    this.logger.log(`🔄 Creating retry payment for invoice ${data.invoiceId} (attempt #${data.retryCount})`);
+    this.logger.log(`[Payment] Creating retry payment for invoice ${data.invoiceId} (attempt #${data.retryCount})`);
     
     // TODO: Implement retry payment creation logic
     const payment = this.paymentRepository.create({
@@ -651,7 +651,7 @@ export class PaymentService {
     });
 
     const savedPayment = await this.paymentRepository.save(payment);
-    this.logger.log(`✅ Retry payment created: ${savedPayment.id}`);
+    this.logger.log(`[Payment] Retry payment created: ${savedPayment.id}`);
     
     return savedPayment;
   }
@@ -666,7 +666,7 @@ export class PaymentService {
     reason: string;
     refundedAt?: Date;  // Add optional refundedAt
   }): Promise<void> {
-    this.logger.log(`💰 Marking payment ${data.paymentId} as refunded`);
+    this.logger.log(`[Payment] Marking payment ${data.paymentId} as refunded`);
     
     const paymentId = parseInt(data.paymentId, 10);
     
@@ -688,7 +688,7 @@ export class PaymentService {
       `Refunded ${data.refundAmount} VND. Reason: ${data.reason}`,
     );
 
-    this.logger.log(`✅ Payment ${data.paymentId} marked as refunded`);
+    this.logger.log(`[Payment] Payment ${data.paymentId} marked as refunded`);
   }
 
   // =================== EVENT EMITTER METHODS FOR TESTING ===================
@@ -706,7 +706,7 @@ export class PaymentService {
     transactionId: string;
     paidAt?: Date;
   }): Promise<void> {
-    this.logger.log(`📤 Emitting payment.success event for payment ${data.paymentId}`);
+    this.logger.log(`[Payment] Emitting payment.success event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.success', {
       eventId: crypto.randomUUID(),
@@ -725,7 +725,7 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(`✅ payment.success event emitted`);
+    this.logger.log(`[Payment] payment.success event emitted`);
   }
 
   /**
@@ -742,7 +742,7 @@ export class PaymentService {
     errorCode?: string;
     canRetry?: boolean;
   }): Promise<void> {
-    this.logger.log(`📤 Emitting payment.failed event for payment ${data.paymentId}`);
+    this.logger.log(`[Payment] Emitting payment.failed event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.failed', {
       eventId: crypto.randomUUID(),
@@ -762,7 +762,7 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(`✅ payment.failed event emitted`);
+    this.logger.log(`[Payment] payment.failed event emitted`);
   }
 
   /**
@@ -777,7 +777,7 @@ export class PaymentService {
     retryCount: number;
     previousFailureReason: string;
   }): Promise<void> {
-    this.logger.log(`📤 Emitting payment.retry event for payment ${data.paymentId}`);
+    this.logger.log(`[Payment] Emitting payment.retry event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.retry', {
       eventId: crypto.randomUUID(),
@@ -795,7 +795,7 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(`✅ payment.retry event emitted`);
+    this.logger.log(`[Payment] payment.retry event emitted`);
   }
 
   /**
@@ -811,7 +811,7 @@ export class PaymentService {
     method: string;
     paymentUrl?: string;
   }): Promise<void> {
-    this.logger.log(`📤 Emitting payment.initiated event for payment ${data.paymentId}`);
+    this.logger.log(`[Payment] Emitting payment.initiated event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.initiated', {
       eventId: crypto.randomUUID(),
@@ -831,7 +831,7 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(`✅ payment.initiated event emitted`);
+    this.logger.log(`[Payment] payment.initiated event emitted`);
   }
 
   /**
@@ -846,7 +846,7 @@ export class PaymentService {
     reason: string;
     refundedAt?: Date;
   }): Promise<void> {
-    this.logger.log(`📤 Emitting payment.refunded event for payment ${data.paymentId}`);
+    this.logger.log(`[Payment] Emitting payment.refunded event for payment ${data.paymentId}`);
     
     this.kafkaClient.emit('payment.refunded', {
       eventId: crypto.randomUUID(),
@@ -864,7 +864,7 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(`✅ payment.refunded event emitted`);
+    this.logger.log(`[Payment] payment.refunded event emitted`);
   }
 
 }

@@ -5,6 +5,7 @@ import { catchError, firstValueFrom } from 'rxjs';
 interface CatalogueGrpcService {
   createProduct(data: any): any;
   getAllProducts(data: any): any;
+  getProductsByOwner(data: { ownerId: string; page?: number; limit?: number }): any;
   getProductById(data: { id: number }): any;
   updateProduct(data: any): any;
   createPlan(data: any): any;
@@ -45,6 +46,21 @@ export class CatalogueService implements OnModuleInit {
     try {
       return await firstValueFrom(
         this.catalogueGrpcService.getAllProducts({ page, limit }).pipe(
+          catchError(error => {
+            throw new HttpException(error.details || 'Failed to get products', HttpStatus.INTERNAL_SERVER_ERROR);
+          }),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException('Catalogue service unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  async getProductsByOwner(ownerId: string, page: number = 1, limit: number = 20) {
+    try {
+      return await firstValueFrom(
+        this.catalogueGrpcService.getProductsByOwner({ ownerId, page, limit }).pipe(
           catchError(error => {
             throw new HttpException(error.details || 'Failed to get products', HttpStatus.INTERNAL_SERVER_ERROR);
           }),

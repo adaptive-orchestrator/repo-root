@@ -105,6 +105,34 @@ export class CustomerController {
     }
   }
 
+  @Get('by-user/:userId')
+  @ApiOperation({
+    summary: 'Get customer by user ID',
+    description: 'Find a customer using their auth user ID (from JWT token)',
+  })
+  @ApiParam({ name: 'userId', type: Number, example: 2 })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Customer found',
+    type: CustomerResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Customer not found for this user ID',
+  })
+  async getCustomerByUserId(@Param('userId', ParseIntPipe) userId: number) {
+    try {
+      const result: any = await this.customerService.getCustomerByUserId(userId);
+      return result.customer;
+    } catch (error: any) {
+      // Handle gRPC NOT_FOUND error (code 5)
+      if (error?.code === 5 || error?.details?.includes('not found')) {
+        throw new NotFoundException(`Customer with userId ${userId} not found`);
+      }
+      throw new InternalServerErrorException(error?.details || 'Internal server error');
+    }
+  }
+
   // ============ Dynamic :id route MUST come after static routes ============
 
   @Get(':id')

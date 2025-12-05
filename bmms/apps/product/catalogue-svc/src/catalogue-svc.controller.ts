@@ -21,6 +21,13 @@ export class CatalogueSvcController {
     return await this.service.listProducts(page, limit);
   }
 
+  @GrpcMethod('CatalogueService', 'GetProductsByOwner')
+  async getProductsByOwner(data: { ownerId: string; page?: number; limit?: number }) {
+    const page = data.page || 1;
+    const limit = data.limit || 20;
+    return await this.service.listProductsByOwner(data.ownerId, page, limit);
+  }
+
   @GrpcMethod('CatalogueService', 'GetProductById')
   async getProductById(data: { id: number }) {
     try {

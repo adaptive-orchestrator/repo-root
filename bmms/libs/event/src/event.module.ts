@@ -26,7 +26,7 @@ export class EventModule {
                 .get<string>('KAFKA_BROKER', 'localhost:9092')
                 .split(',');
 
-              debug.log(`🔗 Kafka Config for [${clientId}]:`);
+              debug.log(`[EventModule] Kafka Config for [${clientId}]:`);
               debug.log('Brokers:', brokers);
               debug.log('Consumer Group:', consumerGroupId);
 

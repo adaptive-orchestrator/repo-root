@@ -1,4 +1,7 @@
 -- Create plan_features junction table for Many-to-Many relationship
+
+USE catalogue_db;
+
 CREATE TABLE IF NOT EXISTS plan_features (
     planId INT NOT NULL,
     featureId INT NOT NULL,

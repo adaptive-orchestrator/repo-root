@@ -19,21 +19,30 @@ export class InventoryController {
       data.reorderLevel || 10,
       data.warehouseLocation,
       data.maxStock,
+      data.ownerId, // Pass ownerId for multi-tenant support
     );
     return { inventory, message: 'Inventory created successfully' };
   }
 
   @GrpcMethod('InventoryService', 'GetInventoryByProduct')
-  async getInventoryByProduct(data: { productId: number }) {
-    const inventory = await this.service.getByProduct(data.productId);
+  async getInventoryByProduct(data: { productId: number; ownerId?: string }) {
+    const inventory = await this.service.getByProduct(data.productId, data.ownerId);
     return { inventory, message: 'Inventory retrieved' };
   }
 
   @GrpcMethod('InventoryService', 'GetAllInventory')
-  async getAllInventory(data: { page?: number; limit?: number }) {
+  async getAllInventory(data: { page?: number; limit?: number; ownerId?: string }) {
     const page = data.page || 1;
     const limit = data.limit || 20;
-    const result = await this.service.listAll(page, limit);
+    const result = await this.service.listAll(page, limit, data.ownerId);
+    return result;
+  }
+
+  @GrpcMethod('InventoryService', 'GetInventoryByOwner')
+  async getInventoryByOwner(data: { ownerId: string; page?: number; limit?: number }) {
+    const page = data.page || 1;
+    const limit = data.limit || 20;
+    const result = await this.service.listAll(page, limit, data.ownerId);
     return result;
   }
 

@@ -6,6 +6,7 @@ service CatalogueService {
   // Product operations
   rpc CreateProduct (CreateProductRequest) returns (ProductResponse);
   rpc GetAllProducts (PaginationRequest) returns (ProductListResponse);
+  rpc GetProductsByOwner (GetProductsByOwnerRequest) returns (ProductListResponse);
   rpc GetProductById (ProductByIdRequest) returns (ProductResponse);
   rpc UpdateProduct (UpdateProductRequest) returns (ProductResponse);
   
@@ -39,6 +40,7 @@ message Product {
   string imageUrl = 7;
   string createdAt = 8;
   string updatedAt = 9;
+  string ownerId = 10;
 }
 
 message CreateProductRequest {
@@ -48,6 +50,13 @@ message CreateProductRequest {
   string sku = 4;
   string category = 5;
   string imageUrl = 6;
+  string ownerId = 7;
+}
+
+message GetProductsByOwnerRequest {
+  string ownerId = 1;
+  int32 page = 2;
+  int32 limit = 3;
 }
 
 message ProductByIdRequest {
