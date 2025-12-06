@@ -55,7 +55,7 @@ export class OrderEventListener {
       this.logEvent(event);
       const { orderId } = event.data;
       // TODO: Mark order as "stock confirmed" if all items reserved
-      console.log(`[OrderEvent] Inventory reserved for order ${orderId}`);orderId}`);
+      console.log(`[OrderEvent] Inventory reserved for order ${orderId}`);
     } catch (error) {
       console.error('[ERROR] Error handling INVENTORY_RESERVED:', error);
     }
