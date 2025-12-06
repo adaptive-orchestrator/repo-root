@@ -187,11 +187,11 @@ export class HelmIntegrationService {
   async saveChangeset(changeset: HelmChangeset, filename?: string): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const file = filename || `changeset-${changeset.global.businessModel}-${timestamp}.yaml`;
-    const outputDir = join(process.cwd(), 'helm_changesets');
-    const filePath = join(outputDir, file);
+    // Save to HELM_CHARTS_PATH/changesets/ (mounted volume in K8s)
+    const filePath = join(this.changesetsPath, file);
 
     // Create directory if not exists
-    await mkdir(outputDir, { recursive: true });
+    await mkdir(this.changesetsPath, { recursive: true });
 
     // Convert to YAML and save
     const yamlContent = yaml.dump(changeset, {
