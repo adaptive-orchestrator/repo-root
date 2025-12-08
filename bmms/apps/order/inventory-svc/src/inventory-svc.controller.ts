@@ -48,11 +48,18 @@ export class InventoryController {
 
   @GrpcMethod('InventoryService', 'AdjustStock')
   async adjustStock(data: any) {
-    const inventory = await this.service.adjust(data.productId, {
-      adjustment: data.quantity,
-      reason: data.reason || 'adjustment',
-      notes: data.notes || data.reason,
-    });
+    console.log('[InventoryController.adjustStock] Received data:', JSON.stringify(data, null, 2));
+    console.log('[InventoryController.adjustStock] ownerId:', data.ownerId);
+    const inventory = await this.service.adjust(
+      data.productId,
+      {
+        adjustment: data.quantity,
+        reason: data.reason || 'adjustment',
+        notes: data.notes || data.reason,
+      },
+      data.ownerId, // Pass ownerId to create inventory for correct owner
+    );
+    console.log('[InventoryController.adjustStock] Created inventory:', JSON.stringify(inventory, null, 2));
     return { inventory, message: 'Stock adjusted successfully' };
   }
 
