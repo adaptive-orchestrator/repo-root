@@ -345,6 +345,8 @@ export class InventoryService implements OnModuleInit {
       whereCondition.ownerId = ownerId;
     }
     
+    console.log('[InventoryService.listAll] Query with ownerId:', ownerId, 'whereCondition:', whereCondition);
+    
     const [items, total] = await this.inventoryRepo.findAndCount({
       where: whereCondition,
       relations: ['reservations'],
@@ -374,8 +376,32 @@ export class InventoryService implements OnModuleInit {
   async adjust(
     productId: string,
     dto: AdjustInventoryDto,
+    ownerId?: string,
   ): Promise<Inventory> {
-    const inventory = await this.getByProduct(productId);
+    console.log('[InventoryService.adjust] productId:', productId, 'ownerId:', ownerId, 'adjustment:', dto.adjustment);
+    
+    let inventory: Inventory;
+    
+    try {
+      // Try to get existing inventory with ownerId if provided
+      inventory = await this.getByProduct(productId, ownerId);
+      console.log('[InventoryService.adjust] Found existing inventory:', inventory.id, 'ownerId:', inventory.ownerId);
+    } catch (error) {
+      // If not found, create new inventory for this owner
+      if (error instanceof NotFoundException && ownerId) {
+        debug.log(`[Inventory] Creating new inventory for product ${productId}, owner ${ownerId}`);
+        inventory = await this.createInventoryForProduct(
+          productId,
+          0, // Start with 0, will be adjusted below
+          10, // Default reorder level
+          ownerId,
+        );
+        console.log('[InventoryService.adjust] Created new inventory:', inventory.id, 'ownerId:', inventory.ownerId);
+      } else {
+        throw error;
+      }
+    }
+    
     const previousQuantity = inventory.quantity;
 
     inventory.quantity += dto.adjustment;

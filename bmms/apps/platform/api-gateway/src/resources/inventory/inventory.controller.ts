@@ -124,9 +124,17 @@ export class InventoryController {
   @ApiBody({ type: AdjustStockDto })
   @ApiOkResponse({ type: CreateInventoryResponseDto, description: 'Stock adjusted successfully' })
   @ApiBadRequestResponse({ type: InventoryErrorResponseDto, description: 'Invalid adjustment' })
-  async adjustStock(@Param('productId') productId: string, @Body(ValidationPipe) body: AdjustStockDto) {
+  async adjustStock(
+    @CurrentUser() user: JwtUserPayload,
+    @Param('productId') productId: string,
+    @Body(ValidationPipe) body: AdjustStockDto,
+  ) {
+    const ownerId = String(getUserIdAsCustomerId(user));
+    //console.log('[InventoryController.adjustStock] User:', user, 'ownerId:', ownerId);
+    //console.log('[InventoryController.adjustStock] Sending to service:', { productId, ownerId, ...body });
     return this.inventoryService.adjustStock({
       productId: productId,
+      ownerId, // Pass ownerId from JWT token
       ...body,
     });
   }

@@ -114,6 +114,7 @@ message AdjustStockRequest {
   string reason = 3;
   string adjustmentType = 4; // RESTOCK, DAMAGED, RETURNED, etc.
   string notes = 5; // Additional notes from user
+  string ownerId = 6; // Owner of the inventory
 }
 
 // Reservation messages
