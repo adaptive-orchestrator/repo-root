@@ -193,6 +193,49 @@ export interface InventoryLowStockEvent extends BaseEvent {
   };
 }
 
+export interface InventoryReserveFailedEvent extends BaseEvent {
+  eventType: 'inventory.reserve_failed';
+  data: {
+    orderId: string;
+    orderNumber?: string;
+    customerId?: string;
+    reason: 'OUT_OF_STOCK' | 'PRODUCT_NOT_FOUND' | 'RESERVATION_ERROR';
+    unavailableItems: Array<{
+      productId: string;
+      requestedQuantity: number;
+      availableQuantity: number;
+    }>;
+  };
+}
+
+export interface InventoryReleaseRequestEvent extends BaseEvent {
+  eventType: 'inventory.release_request';
+  data: {
+    orderId: string;
+    reason: string;
+  };
+}
+
+export interface OrderConfirmedEvent extends BaseEvent {
+  eventType: 'order.confirmed';
+  data: {
+    orderId: string;
+    orderNumber: string;
+    customerId: string;
+    totalAmount: number;
+  };
+}
+
+export interface PaymentInitiateEvent extends BaseEvent {
+  eventType: 'payment.initiate';
+  data: {
+    orderId: string;
+    orderNumber: string;
+    customerId: string;
+    amount: number;
+  };
+}
+
 /**
  * Order Events
  */
